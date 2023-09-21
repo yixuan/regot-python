@@ -32,11 +32,8 @@ void qrot_s3n_internal(
         delta1 = 1.5, delta2 = 1.0,
         cg_tol = 1e-6;
 
-    double delta = delta1;
-    double kappa = 0.001;
+    double delta = delta1, kappa = 0.001, mu = 1.0, rho = 0.0;
     bool stage2 = false;
-    double mu = 1.0;
-    double rho = 0.0;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
@@ -84,6 +81,7 @@ void qrot_s3n_internal(
 
         // Compute search direction
         double shift = mu * std::pow(gnorm, delta);
+        // Initial conservative steps
         if (i < 10)
         {
             shift = 1e-3 * std::max(H.h1().maxCoeff(), H.h2().maxCoeff());
@@ -106,14 +104,18 @@ void qrot_s3n_internal(
         double newf;
         double alpha = prob.line_selection2(
             alphas, gamma, direc, f, newf, verbose, cout);
-        step.noalias() = alpha * direc;
-        gamma.noalias() += step;
 
         // Estimate rho
+        step.noalias() = alpha * direc;
         H.apply_Hx(step, 0.0, Hstep);
         const double numer = f - newf;
         const double denom = -g.dot(step) - 0.5 * step.dot(Hstep);
         rho = numer / denom;
+
+        // In theoretical analysis, we let rho > 0, but here we can
+        // allow for a small increase in objective function value
+        if (rho > -1.0)
+            gamma.noalias() += step;
 
         // Update mu
         if (rho < rho_t1)
