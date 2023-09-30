@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
-#include "LBFGS.h"
+#include <LBFGS.h>
 #include "qrot_problem.h"
 #include "qrot_result.h"
 #include "qrot_solvers.h"
