@@ -1,6 +1,13 @@
+# Python cache and build files
 build/*
 regot.egg-info/*
-*/__pycache__/*
+**/__pycache__/
+
+# Binary files
 *.so
 *.dll
 *.o
+
+# Files during package building
+eigen-3.4.0/
+eigen3.zip

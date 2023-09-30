@@ -1,9 +1,12 @@
 # https://stackoverflow.com/a/47651621
 
-# Available at setup time due to pyproject.toml
+import os
+from pathlib import Path
+import zipfile
+import requests
+from glob import glob
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
-from glob import glob
 
 __version__ = "0.0.1"
 
@@ -16,9 +19,47 @@ __version__ = "0.0.1"
 #   Sort input source files if you glob sources to ensure bit-for-bit
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
+# The directory that contains setup.py
+SETUP_DIRECTORY = Path(__file__).resolve().parent
+
+# Directory of LBFGS++
+LBFGSPP_DIRECTORY = f"{SETUP_DIRECTORY}/src/LBFGSpp"
+
+# Download Eigen source files
+# Modified from https://github.com/tohtsky/irspack/blob/main/setup.py
+class get_eigen_include(object):
+    EIGEN3_URL = "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip"
+    EIGEN3_DIRNAME = "eigen-3.4.0"
+
+    def __str__(self) -> str:
+        # Test whether the environment variable EIGEN3_INCLUDE_DIR is set
+        # If yes, directly return this directory
+        eigen_include_dir = os.environ.get("EIGEN3_INCLUDE_DIR", None)
+        if eigen_include_dir is not None:
+            return eigen_include_dir
+
+        # If the directory already exists (e.g. from previous setup),
+        # directly return it
+        target_dir = SETUP_DIRECTORY / self.EIGEN3_DIRNAME
+        if target_dir.exists():
+            return target_dir.name
+
+        # Filename for the downloaded Eigen source package
+        download_target_dir = SETUP_DIRECTORY / "eigen3.zip"
+        response = requests.get(self.EIGEN3_URL, stream=True)
+        with download_target_dir.open("wb") as ofs:
+            for chunk in response.iter_content(chunk_size=1024):
+                ofs.write(chunk)
+        # Unzip package
+        with zipfile.ZipFile(download_target_dir) as ifs:
+            ifs.extractall()
+
+        return target_dir.name
+
 ext_modules = [
     Pybind11Extension("regot._internal",
         sorted(glob("src/*.cpp")),
+        include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
         ),
