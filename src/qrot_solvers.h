@@ -29,6 +29,13 @@ void qrot_bcd_internal(
     std::ostream& cout = std::cout
 );
 
+void qrot_gd_internal(
+    QROTResult& result,
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    std::ostream& cout = std::cout
+);
+
 void qrot_grssn_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,

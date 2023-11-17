@@ -52,6 +52,19 @@ QROTResult qrot_bcd(
     return result;
 }
 
+QROTResult qrot_gd(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+)
+{
+    QROTResult result;
+    qrot_gd_internal(
+        result, M, a, b, reg, tol, max_iter,
+        verbose, std::cout);
+
+    return result;
+}
+
 QROTResult qrot_grssn(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol = 1e-6, int max_iter = 1000, double shift = 0.001,
