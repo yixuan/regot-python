@@ -16,7 +16,7 @@ using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double, std::milli>;
 using TimePoint = std::chrono::time_point<Clock, Duration>;
 
-void qrot_s3n_internal(
+void qrot_s5n_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol, int max_iter, bool verbose, std::ostream& cout

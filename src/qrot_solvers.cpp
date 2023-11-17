@@ -118,13 +118,13 @@ QROTResult qrot_pdaam(
     return result;
 }
 
-QROTResult qrot_s3n(
+QROTResult qrot_s5n(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol = 1e-6, int max_iter = 1000, bool verbose = false
 )
 {
     QROTResult result;
-    qrot_s3n_internal(
+    qrot_s5n_internal(
         result, M, a, b, reg, tol, max_iter,
         verbose, std::cout);
 
@@ -160,7 +160,7 @@ PYBIND11_MODULE(_internal, m) {
     m.def("qrot_pdaam", &qrot_pdaam,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
-    m.def("qrot_s3n", &qrot_s3n,
+    m.def("qrot_s5n", &qrot_s5n,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
 

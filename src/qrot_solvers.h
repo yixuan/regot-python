@@ -64,7 +64,7 @@ void qrot_pdaam_internal(
     std::ostream& cout = std::cout
 );
 
-void qrot_s3n_internal(
+void qrot_s5n_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol = 1e-6, int max_iter = 1000, bool verbose = false,
