@@ -144,6 +144,9 @@ PYBIND11_MODULE(_internal, m) {
     m.def("qrot_bcd", &qrot_bcd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+    m.def("qrot_gd", &qrot_gd,
+        "M"_a, "a"_a, "b"_a, "reg"_a,
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
     m.def("qrot_grssn", &qrot_grssn,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "shift"_a = 0.001,
