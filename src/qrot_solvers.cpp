@@ -170,6 +170,7 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("niter", &QROTResult::niter)
         .def_readwrite("plan", &QROTResult::plan)
         .def_readwrite("obj_vals", &QROTResult::obj_vals)
+        .def_readwrite("prim_vals", &QROTResult::prim_vals)
         .def_readwrite("mar_errs", &QROTResult::mar_errs)
         .def_readwrite("run_times", &QROTResult::run_times);
 

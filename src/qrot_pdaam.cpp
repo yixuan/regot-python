@@ -39,6 +39,7 @@ void qrot_pdaam_internal(
 
     // Progress statistics
     std::vector<double> obj_vals;
+    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 
@@ -51,20 +52,27 @@ void qrot_pdaam_internal(
     result.get_plan(gamma, prob);
 
     // Start timing
-    TimePoint clock_start = Clock::now();
-    // Get the current f, g
-    double obj = prob.dual_obj_grad(gamma, grad);
+    TimePoint clock_t1 = Clock::now();
+    // Initial objective function and gradient
+    double f = prob.dual_obj_grad(gamma, grad);
     double gnorm = grad.norm();
-    TimePoint now = Clock::now();
+    // Record timing
+    TimePoint clock_t2 = Clock::now();
+
     // Collect progress statistics
-    obj_vals.push_back(obj);
+    double prim_val = prob.primal_val(gamma);
+    obj_vals.push_back(f);
+    prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm / reg);
-    run_times.push_back((now - clock_start).count());
+    run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
     double L = L0, palpha = 0.0;
     for (i = 0; i < max_iter; i++)
     {
+        // Start timing
+        clock_t1 = Clock::now();
+
         // Line search
         double L_new = 0.5 * L, phi_new = 0.0, tau_old_plan = 0.0, tau_new_plan = 0.0;
         for (int j = 0; j < max_inner; j++)
@@ -79,8 +87,8 @@ void qrot_pdaam_internal(
             // Compute the new dual~ and compute phi(dual~)
             dualt.noalias() = (1.0 - ptau) * dual + ptau * dualp;
             gamma.noalias() = -dualt;
-            obj = prob.dual_obj_grad(gamma, grad);
-            const double phit = -obj / reg;
+            f = prob.dual_obj_grad(gamma, grad);
+            const double phit = -f / reg;
 
             // Compare residuals and choose which block to update
             const double lam_resid = grad.head(n).squaredNorm();
@@ -94,8 +102,8 @@ void qrot_pdaam_internal(
                 prob.optimal_beta(gamma.head(n), gamma.tail(m));
             }
             dual_new.noalias() = -gamma;
-            obj = prob.dual_obj(gamma);
-            phi_new = -obj / reg;
+            f = prob.dual_obj(gamma);
+            phi_new = -f / reg;
 
             // Line search test
             const double rhs = phit + (lam_resid + mu_resid) / (2.0 * L_new * reg * reg);
@@ -140,13 +148,17 @@ void qrot_pdaam_internal(
         Vector resid_b = result.plan.colwise().sum().transpose() - b;
         const double mar_err = std::sqrt(resid_a.squaredNorm() + resid_b.squaredNorm());
 
-        // Record timing after each iteration
-        now = Clock::now();
+        // Record timing
+        clock_t2 = Clock::now();
 
         // Collect progress statistics
-        obj_vals.push_back(obj);
+        prim_val = prob.primal_val(gamma);
+        obj_vals.push_back(f);
+        prim_vals.push_back(prim_val);
         mar_errs.push_back(mar_err);
-        run_times.push_back((now - clock_start).count());
+        double duration = (clock_t2 - clock_t1).count();
+        run_times.push_back(run_times.back() + duration);
+        
         if (verbose)
         {
             cout << "i = " << i << ", primal_obj = " << primal_obj <<
@@ -162,6 +174,7 @@ void qrot_pdaam_internal(
     // Save results
     result.niter = i;
     result.obj_vals.swap(obj_vals);
+    result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

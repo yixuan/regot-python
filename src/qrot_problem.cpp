@@ -1,7 +1,27 @@
 #include "qrot_problem.h"
+#include "approx_proj.h"
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
+
+// Compute the primal objective function
+double Problem::primal_val(const Vector& gamma) const
+{
+    // Get transport plan
+    Matrix plan = gamma.head(m_n).replicate(1, m_m) +
+        gamma.tail(m_m).transpose().replicate(m_n, 1) -
+        m_M;
+    plan.noalias() = plan.cwiseMax(0.0) / m_reg;
+
+    // Approximate projection
+    Matrix plan_feas = approx_proj(plan, m_a, m_b);
+
+    double prim_val = plan_feas.cwiseProduct(m_M).sum() +
+            0.5 * m_reg * plan_feas.squaredNorm();
+    return prim_val;
+}
+
+
 
 // Input gamma and M, compute statistics related to D:
 //     ||D||_F^2, D row sum, D column sum
@@ -70,8 +90,6 @@ double compute_D_stats(
 
     return D_sqnorm;
 }
-
-
 
 // Compute the objective function
 // f(alpha, beta) = 0.5 * ||(alpha (+) beta - M)+||^2 - reg * (a' * alpha + b' * beta)

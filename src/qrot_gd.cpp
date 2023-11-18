@@ -35,6 +35,7 @@ void qrot_gd_internal(
 
     // Progress statistics
     std::vector<double> obj_vals;
+    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 
@@ -42,30 +43,34 @@ void qrot_gd_internal(
     gamma.head(n).setZero();
     prob.optimal_beta(gamma.head(n), gamma.tail(m));
 
-    // Objective function value, gradient, and Hessian
-    double f;
-    Vector g;
+    // Start timing
+    TimePoint clock_t1 = Clock::now();
+    // Initial objective function and gradient
+    Vector grad;
+    double f = prob.dual_obj_grad(gamma, grad);
+    double gnorm = grad.norm();
+    // Record timing
+    TimePoint clock_t2 = Clock::now();
+
+    // Collect progress statistics
+    double prim_val = prob.primal_val(gamma);
+    obj_vals.push_back(f);
+    prim_vals.push_back(prim_val);
+    mar_errs.push_back(gnorm / reg);
+    run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
-    // Start timing
-    TimePoint clock_start = Clock::now();
     for (i = 0; i < max_iter; i++)
     {
-        // Get the current f, g
-        f = prob.dual_obj_grad(gamma, g);
-        // Record timing after each iteration
-        TimePoint now = Clock::now();
-
-        // Collect progress statistics
-        double gnorm = g.norm();
-        obj_vals.push_back(f);
-        mar_errs.push_back(gnorm / reg);
-        run_times.push_back((now - clock_start).count());
         if (verbose)
         {
             cout << "i = " << i << ", obj = " << f <<
                 ", gnorm = " << gnorm << std::endl;
         }
+
+        // Start timing
+        clock_t1 = Clock::now();
+
         // Convergence test
         if (gnorm < tol)
             break;
@@ -74,19 +79,34 @@ void qrot_gd_internal(
         double step = 1.0;
         for (int k = 0; k < nlinesearch; k++)
         {
-            newgamma.noalias() = gamma - step * g;
+            newgamma.noalias() = gamma - step * grad;
             const double newf = prob.dual_obj(newgamma);
-            if (newf <= f - theta * step * g.squaredNorm())
+            if (newf <= f - theta * step * grad.squaredNorm())
                 break;
             step *= kappa;
         }
         gamma.swap(newgamma);
+
+        // Get the new f and g
+        f = prob.dual_obj_grad(gamma, grad);
+        gnorm = grad.norm();
+        // Record timing
+        clock_t2 = Clock::now();
+
+        // Collect progress statistics
+        prim_val = prob.primal_val(gamma);
+        obj_vals.push_back(f);
+        prim_vals.push_back(prim_val);
+        mar_errs.push_back(gnorm / reg);
+        double duration = (clock_t2 - clock_t1).count();
+        run_times.push_back(run_times.back() + duration);
     }
 
     // Save results
     result.niter = i;
     result.get_plan(gamma, prob);
     result.obj_vals.swap(obj_vals);
+    result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

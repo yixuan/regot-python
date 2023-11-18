@@ -2,8 +2,8 @@
 #define REGOT_QROT_RESULT_H
 
 #include <vector>
-#include "qrot_problem.h"
 #include "config.h"
+#include "qrot_problem.h"
 
 struct QROTResult
 {
@@ -19,6 +19,7 @@ struct QROTResult
     int                 niter;
     ResultMatrix        plan;
     std::vector<double> obj_vals;
+    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 

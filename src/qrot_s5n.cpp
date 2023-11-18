@@ -41,6 +41,7 @@ void qrot_s5n_internal(
 
     // Progress statistics
     std::vector<double> obj_vals;
+    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 
@@ -48,33 +49,38 @@ void qrot_s5n_internal(
     gamma.head(n).setZero();
     prob.optimal_beta(gamma.head(n), gamma.tail(m));
 
-    // Objective function value, gradient, and Hessian
+    // Start timing
+    TimePoint clock_t1 = Clock::now();
+    // Initial objective function value, gradient, and Hessian
     double f;
     Vector g;
     Hessian H;
+    prob.dual_obj_grad_hess(gamma, f, g, H);
+    double gnorm = g.norm();
+    // Record timing
+    TimePoint clock_t2 = Clock::now();
+
+    // Collect progress statistics
+    double prim_val = prob.primal_val(gamma);
+    obj_vals.push_back(f);
+    prim_vals.push_back(prim_val);
+    mar_errs.push_back(gnorm / reg);
+    run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
     std::vector<double> alphas{1.0, 0.5, 0.25, 0.125, 0.0625, 0.01};
-    // Start timing
-    TimePoint clock_start = Clock::now();
     for (i = 0; i < max_iter; i++)
     {
-        // Get the current f, g, H
-        prob.dual_obj_grad_hess(gamma, f, g, H);
-        // Record timing after each iteration
-        TimePoint now = Clock::now();
-
-        // Collect progress statistics
-        double gnorm = g.norm();
-        obj_vals.push_back(f);
-        mar_errs.push_back(gnorm / reg);
-        run_times.push_back((now - clock_start).count());
         if (verbose)
         {
             cout << "i = " << i << ", obj = " << f <<
                 ", gnorm = " << gnorm << ", rho = " << rho <<
                 ", mu = " << mu << std::endl;
         }
+
+        // Start timing
+        clock_t1 = Clock::now();
+
         // Convergence test
         if (gnorm < tol)
             break;
@@ -125,12 +131,27 @@ void qrot_s5n_internal(
         {
             mu = std::max(mu_s2 * mu, kappa);
         }
+
+        // Get the new f, g, H
+        prob.dual_obj_grad_hess(gamma, f, g, H);
+        gnorm = g.norm();
+        // Record timing
+        clock_t2 = Clock::now();
+
+        // Collect progress statistics
+        prim_val = prob.primal_val(gamma);
+        obj_vals.push_back(f);
+        prim_vals.push_back(prim_val);
+        mar_errs.push_back(gnorm / reg);
+        double duration = (clock_t2 - clock_t1).count();
+        run_times.push_back(run_times.back() + duration);
     }
 
     // Save results
     result.niter = i;
     result.get_plan(gamma, prob);
     result.obj_vals.swap(obj_vals);
+    result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

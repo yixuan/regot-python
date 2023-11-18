@@ -30,6 +30,7 @@ void qrot_bcd_internal(
 
     // Progress statistics
     std::vector<double> obj_vals;
+    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 
@@ -37,26 +38,33 @@ void qrot_bcd_internal(
     gamma.head(n).setZero();
     prob.optimal_beta(gamma.head(n), gamma.tail(m));
 
-    int i;
     // Start timing
-    TimePoint clock_start = Clock::now();
+    TimePoint clock_t1 = Clock::now();
+    // Initial objective function and gradient
+    double f = prob.dual_obj_grad(gamma, grad);
+    double gnorm = grad.norm();
+    // Record timing
+    TimePoint clock_t2 = Clock::now();
+
+    // Collect progress statistics
+    double prim_val = prob.primal_val(gamma);
+    obj_vals.push_back(f);
+    prim_vals.push_back(prim_val);
+    mar_errs.push_back(gnorm / reg);
+    run_times.push_back((clock_t2 - clock_t1).count());
+
+    int i;
     for (i = 0; i < max_iter; i++)
     {
-        // Get the current f, g
-        double obj = prob.dual_obj_grad(gamma, grad);
-        double gnorm = grad.norm();
-        // Record timing after each iteration
-        TimePoint now = Clock::now();
-
-        // Collect progress statistics
-        obj_vals.push_back(obj);
-        mar_errs.push_back(gnorm / reg);
-        run_times.push_back((now - clock_start).count());
         if (verbose)
         {
-            cout << "i = " << i << ", obj = " << obj <<
+            cout << "i = " << i << ", obj = " << f <<
                 ", gnorm = " << gnorm << std::endl;
         }
+
+        // Start timing
+        clock_t1 = Clock::now();
+
         // Convergence test
         if (gnorm < tol)
             break;
@@ -65,12 +73,27 @@ void qrot_bcd_internal(
         prob.optimal_alpha(gamma.tail(m), gamma.head(n));
         // Optimal beta given alpha
         prob.optimal_beta(gamma.head(n), gamma.tail(m));
+
+        // Get the new f and g
+        f = prob.dual_obj_grad(gamma, grad);
+        gnorm = grad.norm();
+        // Record timing
+        clock_t2 = Clock::now();
+
+        // Collect progress statistics
+        prim_val = prob.primal_val(gamma);
+        obj_vals.push_back(f);
+        prim_vals.push_back(prim_val);
+        mar_errs.push_back(gnorm / reg);
+        double duration = (clock_t2 - clock_t1).count();
+        run_times.push_back(run_times.back() + duration);
     }
 
     // Save results
     result.niter = i;
     result.get_plan(gamma, prob);
     result.obj_vals.swap(obj_vals);
+    result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

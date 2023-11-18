@@ -40,6 +40,9 @@ public:
     // Return the regularization parameter
     double reg() const { return m_reg; }
 
+    // Compute the primal objective function
+    double primal_val(const Vector& gamma) const;
+
     // Compute the objective function
     // f(alpha, beta) = 0.5 * ||(alpha (+) beta - M)+||^2 - reg * (a' * alpha + b' * beta)
     double dual_obj_vanilla(const Vector& gamma) const;

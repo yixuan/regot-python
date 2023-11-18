@@ -90,7 +90,7 @@ public:
         // Evaluate function and compute gradient
         fx = f(x, m_grad);
         m_gnorm = m_grad.norm();
-        f.iterate(*this);
+        f.iterate(x, *this);
         if (fpast > 0)
             m_fx[0] = fx;
 
@@ -129,7 +129,7 @@ public:
 
             // New gradient norm
             m_gnorm = m_grad.norm();
-            f.iterate(*this);
+            f.iterate(x, *this);
 
             // std::cout << "Iter " << k << " finished line search" << std::endl;
             // std::cout << "   x = " << x.transpose() << std::endl;
