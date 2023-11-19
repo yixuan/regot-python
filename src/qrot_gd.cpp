@@ -77,11 +77,12 @@ void qrot_gd_internal(
 
         // Line search
         double step = 1.0;
+        double thresh = theta * gnorm * gnorm;
         for (int k = 0; k < nlinesearch; k++)
         {
             newgamma.noalias() = gamma - step * grad;
             const double newf = prob.dual_obj(newgamma);
-            if (newf <= f - theta * step * grad.squaredNorm())
+            if (newf <= f - step * thresh)
                 break;
             step *= kappa;
         }
