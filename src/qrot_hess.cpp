@@ -2,6 +2,9 @@
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
+using ConstRefVec = Eigen::Ref<const Vector>;
+
+namespace QROT {
 
 // The generalized Hessian matrix has a special structure
 //     H = [diag(sigma * 1m)              sigma]
@@ -55,15 +58,15 @@ void Hessian::compute_D_hess(
     const double* alpha = gamma.data();
     const double* beta = alpha + n;
     const double* Mdata = M.data();
-    for(int j = 0; j < m; j++)
+    for (int j = 0; j < m; j++)
     {
         const double betaj = beta[j];
         double colsumj = 0.0;
         int h2j = 0;
-        for(int i = 0; i < n; i++, Mdata++)
+        for (int i = 0; i < n; i++, Mdata++)
         {
             const double Cij = alpha[i] + betaj - *Mdata;
-            if(Cij > 0.0)
+            if (Cij > 0.0)
             {
                 // C[i, j] > 0 => sigma[i, j] = 1
                 //
@@ -95,10 +98,10 @@ void Hessian::compute_D_hess(
 // res = sigma * x, x [m], res [n]
 void Hessian::apply_sigmax(const double* x, double* res) const
 {
-    for(int i = 0; i < m_n; i++)
+    for (int i = 0; i < m_n; i++)
     {
         double resi = 0.0;
-        for(auto j: m_sigma[i])
+        for (auto j: m_sigma[i])
         {
             resi += x[j];
         }
@@ -109,10 +112,10 @@ void Hessian::apply_sigmax(const double* x, double* res) const
 // res = sigma' * x, x [n], res [m]
 void Hessian::apply_sigmatx(const double* x, double* res) const
 {
-    for(int j = 0; j < m_m; j++)
+    for (int j = 0; j < m_m; j++)
     {
         double resj = 0.0;
-        for(auto i: m_sigmat[j])
+        for (auto i: m_sigmat[j])
         {
             resj += x[i];
         }
@@ -120,23 +123,75 @@ void Hessian::apply_sigmatx(const double* x, double* res) const
     }
 }
 
-// Compute Delta * x
-// Delta * x = h2 .* x + lam * x - sigma' * ((sigma * x) ./ (h1 .+ lam))
-void Hessian::apply_Deltax(const Vector& x, double shift, Vector& res) const
+// Compute A^(-1) * x
+void Hessian::solve_Ax(const ConstRefVec& x, double shift, double tau, Vector& res) const
 {
     res.resizeLike(x);
 
-    // Compute sigma * []
-    apply_sigmax(x.data(), m_cache_sigmax.data());
-    m_cache_sigmax.array() /= (m_h1.array() + shift);
-    // Compute sigma' * []
-    apply_sigmatx(m_cache_sigmax.data(), m_cache_sigmatx.data());
-
-    res.noalias() = m_h2.cwiseProduct(x) + shift * x - m_cache_sigmatx;
+    // res is of size n, used as cache for h1_shift
+    res.array() = m_h1.array() + shift;
+    if (tau > 0.0)
+    {
+        Eigen::ArrayXd xh = x.array() / res.array();
+        const double c1 = 1.0 / tau + (1.0 / res.array()).sum();
+        const double c2 = xh.sum();
+        res.array() = xh - (c2 / c1) / res.array();
+    } else {
+        res.array() = x.array() / res.array();
+    }
 }
 
-// Compute (H + shift * I) * x
-void Hessian::apply_Hx(const Vector& x, double shift, Vector& res) const
+// Compute B * x
+void Hessian::apply_Bx(const ConstRefVec& x, double tau, Vector& res) const
+{
+    res.resize(m_n);
+
+    // Compute sigma * x
+    apply_sigmax(x.data(), res.data());
+
+    if (tau > 0.0)
+    {
+        res.array() -= tau * x.sum();
+    }
+}
+
+// Compute C * x
+void Hessian::apply_Cx(const ConstRefVec& x, double tau, Vector& res) const
+{
+    res.resize(m_m);
+
+    // Compute sigma * x
+    apply_sigmatx(x.data(), res.data());
+
+    if (tau > 0.0)
+    {
+        res.array() -= tau * x.sum();
+    }
+}
+
+// Compute Delta * x
+void Hessian::apply_Deltax(const Vector& x, double shift, double tau, Vector& res) const
+{
+    res.resizeLike(x);
+
+    // Compute B * x
+    apply_Bx(x, tau, m_cache_sigmax);
+    // Compute A^(-1) * (B * x)
+    solve_Ax(m_cache_sigmax, shift, tau, res);
+    // Compute C * A^(-1) * (B * x)
+    apply_Cx(res, tau, m_cache_sigmatx);
+    // Compute (D - C * A^(-1) * B) * x
+    res.noalias() = m_h2.cwiseProduct(x) + shift * x - m_cache_sigmatx;
+    if (tau > 0.0)
+    {
+        res.array() += tau * x.sum();
+    }
+}
+
+// Compute (H + shift * I + tau * K) * x
+// K = vv', v = (1n, -1m)
+// K * x = (v'x) v = (c * 1n, -c * 1m), c = x[:n].sum() - x[n:].sum()
+void Hessian::apply_Hx(const Vector& x, double shift, double tau, Vector& res) const
 {
     // x = [w, z], w [n], z [m]
     // H * x = [h1, h2] .* x + [sigma * z, sigma' * w]
@@ -150,6 +205,14 @@ void Hessian::apply_Hx(const Vector& x, double shift, Vector& res) const
     res.head(m_n).noalias() += m_h1.cwiseProduct(x.head(m_n));
     res.tail(m_m).noalias() += m_h2.cwiseProduct(x.tail(m_m));
     // Add shift * x
-    if(shift != 0.0)
+    if (shift != 0.0)
         res.noalias() += shift * x;
+    if (tau > 0.0)
+    {
+        const double c = x.head(m_n).sum() - x.tail(m_m).sum();
+        res.head(m_n).array() += tau * c;
+        res.tail(m_m).array() -= tau * c;
+    }
 }
+
+}  // namespace QROT

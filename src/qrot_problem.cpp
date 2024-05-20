@@ -1,6 +1,8 @@
 #include "qrot_problem.h"
 #include "approx_proj.h"
 
+namespace QROT {
+
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 
@@ -103,8 +105,13 @@ double Problem::dual_obj_vanilla(const Vector& gamma) const
 
     const double D_sqnorm = compute_D_stats<true, false, false>(
         m_M, gamma.data(), gamma.data() + m_n, nullptr, nullptr);
-    const double obj = 0.5 * D_sqnorm - m_reg * (
+    double obj = 0.5 * D_sqnorm - m_reg * (
         gamma.head(m_n).dot(m_a) + gamma.tail(m_m).dot(m_b));
+    if (m_tau > 0.0)
+    {
+        const double gamma_diff = gamma.head(m_n).sum() - gamma.tail(m_m).sum();
+        obj += 0.5 * m_tau * gamma_diff * gamma_diff;
+    }
     return obj;
 }
 // SIMD version
@@ -182,6 +189,11 @@ double Problem::dual_obj(const Vector& gamma) const
         }
     }
     obj = 0.5 * obj - m_reg * (gamma.head(m_n).dot(m_a) + gamma.tail(m_m).dot(m_b));
+    if (m_tau > 0.0)
+    {
+        const double gamma_diff = gamma.head(m_n).sum() - gamma.tail(m_m).sum();
+        obj += 0.5 * m_tau * gamma_diff * gamma_diff;
+    }
     return obj;
 }
 
@@ -201,6 +213,13 @@ void Problem::dual_grad(const Vector& gamma, Vector& grad) const
     // grad now contains [D * 1m, D' * 1n]
     grad.head(m_n).noalias() -= m_reg * m_a;
     grad.tail(m_m).noalias() -= m_reg * m_b;
+
+    if (m_tau > 0.0)
+    {
+        const double gamma_diff = gamma.head(m_n).sum() - gamma.tail(m_m).sum();
+        grad.head(m_n).array() += m_tau * gamma_diff;
+        grad.tail(m_m).array() -= m_tau * gamma_diff;
+    }
 }
 
 // Compute the objective function and gradient
@@ -220,8 +239,16 @@ double Problem::dual_obj_grad(const Vector& gamma, Vector& grad) const
     grad.head(m_n).noalias() -= m_reg * m_a;
     grad.tail(m_m).noalias() -= m_reg * m_b;
 
-    const double obj = 0.5 * D_sqnorm - m_reg * (
+    double obj = 0.5 * D_sqnorm - m_reg * (
         gamma.head(m_n).dot(m_a) + gamma.tail(m_m).dot(m_b));
+
+    if (m_tau > 0.0)
+    {
+        const double gamma_diff = gamma.head(m_n).sum() - gamma.tail(m_m).sum();
+        obj += 0.5 * m_tau * gamma_diff * gamma_diff;
+        grad.head(m_n).array() += m_tau * gamma_diff;
+        grad.tail(m_m).array() -= m_tau * gamma_diff;
+    }
     return obj;
 }
 
@@ -252,6 +279,14 @@ void Problem::dual_obj_grad_hess(
     // After calling hess.compute_D_hess(), grad now contains [D * 1m, D' * 1n]
     grad.head(m_n).noalias() -= m_reg * m_a;
     grad.tail(m_m).noalias() -= m_reg * m_b;
+
+    if (m_tau > 0.0)
+    {
+        const double gamma_diff = gamma.head(m_n).sum() - gamma.tail(m_m).sum();
+        obj += 0.5 * m_tau * gamma_diff * gamma_diff;
+        grad.head(m_n).array() += m_tau * gamma_diff;
+        grad.tail(m_m).array() -= m_tau * gamma_diff;
+    }
 }
 
 // Select a step size
@@ -322,6 +357,46 @@ double Problem::line_selection2(
             return best_step;
         }
     }
+    return best_step;
+}
+
+// Select a step size
+double Problem::line_selection3(
+    const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
+    const Hessian& hess, const Vector& grad, double curobj, double& objval, bool verbose, std::ostream& cout
+) const
+{
+    const int nc = static_cast<int>(candid.size());
+    double best_step = 1.0;
+    objval = std::numeric_limits<double>::infinity();
+    for (int i = 0; i < nc; i++)
+    {
+        const double alpha = candid[i];
+        Vector newgamma = gamma + alpha * direc;
+        const double objfn = dual_obj(newgamma);
+
+        Vector step(gamma.size()), Hstep(gamma.size());
+        step.noalias() = alpha * direc;
+        hess.apply_Hx(step, 0.0, m_tau, Hstep);
+        const double numer = curobj - objfn;
+        const double denom = -grad.dot(step) - 0.5 * step.dot(Hstep);
+        const double rho = numer / denom;
+        cout << "[ alpha = " << alpha <<
+            ", numer = " << numer << ", denom = " << denom <<
+            ", rho = " << rho << " ]" << std::endl;
+
+        if (objfn < objval)
+        {
+            best_step = alpha;
+            objval = objfn;
+        }
+        if (objval < curobj)
+        {
+            cout << "alpha = " << best_step << std::endl << std::endl;
+            return best_step;
+        }
+    }
+    cout << "alpha = " << best_step << " *" << std::endl << std::endl;
     return best_step;
 }
 
@@ -404,3 +479,5 @@ double Problem::semi_dual_obj_grad(const Vector& alpha, Vector& grad) const
 
     return obj;
 }
+
+}  // namespace QROT

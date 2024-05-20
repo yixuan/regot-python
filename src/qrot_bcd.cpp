@@ -6,6 +6,8 @@
 #include "qrot_result.h"
 #include "qrot_solvers.h"
 
+namespace QROT {
+
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 
@@ -17,6 +19,7 @@ using TimePoint = std::chrono::time_point<Clock, Duration>;
 void qrot_bcd_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    const QROTSolverOpts& opts,
     double tol, int max_iter, bool verbose, std::ostream& cout
 )
 {
@@ -25,7 +28,7 @@ void qrot_bcd_internal(
     const int m = M.cols();
 
     // Set up the problem
-    Problem prob(M, a, b, reg);
+    Problem prob(M, a, b, reg, 0.0);
     Vector gamma(n + m), grad(n + m);
 
     // Progress statistics
@@ -35,8 +38,13 @@ void qrot_bcd_internal(
     std::vector<double> run_times;
 
     // Initial value
-    gamma.head(n).setZero();
-    prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    if (opts.x0.size() == gamma.size())
+    {
+        gamma.noalias() = opts.x0;
+    } else {
+        gamma.head(n).setZero();
+        prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    }
 
     // Start timing
     TimePoint clock_t1 = Clock::now();
@@ -92,8 +100,11 @@ void qrot_bcd_internal(
     // Save results
     result.niter = i;
     result.get_plan(gamma, prob);
+    result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
     result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }
+
+}  // namespace QROT

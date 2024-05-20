@@ -1,12 +1,16 @@
 #include "qrot_cg.h"
 #include <Eigen/IterativeLinearSolvers>
 
+namespace QROT {
+
 using Vector = Eigen::VectorXd;
 
 // (H + lam * I)^{-1} * rhs
 void hess_cg(
-    const Hessian& hess, const Vector& rhs, double shift,
-    Vector& res, double tol, bool verbose, std::ostream& cout
+    Vector& res,
+    const Hessian& hess, const Vector& rhs, double shift, double tau,
+    const Vector& guess, double tol,
+    bool verbose, std::ostream& cout
 )
 {
     const int n = hess.size_n();
@@ -14,27 +18,35 @@ void hess_cg(
     res.resizeLike(rhs);
 
     // x = [w, z], w [n], z [m]
-    // v = w ./ (h1 .+ lam)
+    // v = A^(-1) * w
     Vector v(n);
-    v.array() = rhs.head(n).array() / (hess.h1().array() + shift);
-    // y = sigma' * v, use the memory of res.tail(m)
-    hess.apply_sigmatx(v.data(), res.data() + n);
+    hess.solve_Ax(rhs.head(n), shift, tau, v);
+    // y = C * v
+    Vector y(m);
+    hess.apply_Cx(v, tau, y);
     // r2 = Delta^{-1} * (z - y)
     Vector zy(m);
-    zy.noalias() = rhs.tail(m) - res.tail(m);
-    HessianCG hesscg(hess, shift);
-    // Eigen::ConjugateGradient<HessianCG, Eigen::Lower | Eigen::Upper, Eigen::IdentityPreconditioner> cg;
-    Eigen::ConjugateGradient<HessianCG, Eigen::Lower | Eigen::Upper, HessianPrecond> cg;
+    zy.noalias() = rhs.tail(m) - y;
+    HessianCG hesscg(hess, shift, tau);
+    Eigen::ConjugateGradient<HessianCG, Eigen::Lower | Eigen::Upper, Eigen::IdentityPreconditioner> cg;
+    // Eigen::ConjugateGradient<HessianCG, Eigen::Lower | Eigen::Upper, HessianPrecond> cg;
     cg.compute(hesscg);
     cg.setTolerance(tol);
-    res.tail(m).noalias() = cg.solve(zy);
+    if (guess.size() == m)
+        res.tail(m).noalias() = cg.solveWithGuess(zy, guess);
+    else
+        res.tail(m).noalias() = cg.solve(zy);
     if(verbose)
     {
         cout << "CG info = " << cg.info() <<
             ", CG niter = " << cg.iterations() << std::endl;
     }
-    // sigma * r2, use the memory of res.head(n)
-    hess.apply_sigmax(res.data() + n, res.data());
-    // r1 = v - (sigma * r2) ./ (h1 .+ lam)
-    res.head(n).array() = v.array() - res.head(n).array() / (hess.h1().array() + shift);
+    // r1 = A^(-1) * (w - B * r2)
+    // y <- B * r2, r1 <- w - y, y <- A^(-1) * r1, r1 <- y
+    hess.apply_Bx(res.tail(m), tau, y);
+    res.head(n).noalias() = rhs.head(n) - y;
+    hess.solve_Ax(res.head(n), shift, tau, y);
+    res.head(n).noalias() = y;
 }
+
+}  // namespace QROT

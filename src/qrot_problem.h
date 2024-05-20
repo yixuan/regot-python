@@ -4,6 +4,8 @@
 #include <Eigen/Core>
 #include "qrot_hess.h"
 
+namespace QROT {
+
 class Problem
 {
 private:
@@ -20,12 +22,13 @@ private:
     RefConstVec  m_a;
     RefConstVec  m_b;
     const double m_reg;
+    const double m_tau;
 
 public:
-    Problem(const RefConstMat& M, const RefConstVec& a, const RefConstVec& b, double reg):
+    Problem(const RefConstMat& M, const RefConstVec& a, const RefConstVec& b, double reg, double tau):
         m_n(M.rows()), m_m(M.cols()),
         m_M(M), m_a(a), m_b(b),
-        m_reg(reg)
+        m_reg(reg), m_tau(tau)
     {}
 
     // Return the dimensions
@@ -39,12 +42,15 @@ public:
 
     // Return the regularization parameter
     double reg() const { return m_reg; }
+    double tau() const { return m_tau; }
 
     // Compute the primal objective function
     double primal_val(const Vector& gamma) const;
 
     // Compute the objective function
-    // f(alpha, beta) = 0.5 * ||(alpha (+) beta - M)+||^2 - reg * (a' * alpha + b' * beta)
+    // f(alpha, beta) = 0.5 * ||(alpha (+) beta - M)+||^2
+    //                    - reg * (a' * alpha + b' * beta)
+    //                    + (tau / 2) * (1' * alpha - 1' * beta)^2
     double dual_obj_vanilla(const Vector& gamma) const;
     // SIMD version
     double dual_obj(const Vector& gamma) const;
@@ -58,10 +64,12 @@ public:
     // Compute the objective function, gradient, and generalized Hessian
     // C = alpha (+) beta - M, D = (C)+, sigma = ifelse(C >= 0, 1, 0)
     // f(alpha, beta) = 0.5 * ||D||^2 - reg * (a' * alpha + b' * beta)
-    // g(alpha) = D * 1m - reg * a
-    // g(beta) = D' * 1n - reg * b
-    // H = [diag(sigma * 1m)              sigma]
+    //                    + (tau / 2) * (1' * alpha - 1' * beta)^2
+    // g(alpha) = D * 1m - reg * a + tau * (1' * alpha - 1' * beta) * 1n
+    // g(beta) = D' * 1n - reg * b - tau * (1' * alpha - 1' * beta) * 1m
+    // H = [diag(sigma * 1m)              sigma] + tau * K
     //     [          sigma'  diag(sigma' * 1n)]
+    // K = vv', v = (1n, -1m)
     void dual_obj_grad_hess(
         const Vector& gamma, double& obj, Vector& grad, Hessian& hess
     ) const;
@@ -75,6 +83,10 @@ public:
         const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
         double curobj, double& objval, bool verbose = false, std::ostream& cout = std::cout
     ) const;
+    double line_selection3(
+        const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
+        const Hessian& hess, const Vector& grad, double curobj, double& objval, bool verbose = false, std::ostream& cout = std::cout
+    ) const;
 
     // Optimal beta given alpha
     void optimal_beta(const RefConstVec& alpha, RefVec beta) const;
@@ -85,6 +97,8 @@ public:
     // Compute the objective function and gradient of semi-dual
     double semi_dual_obj_grad(const Vector& alpha, Vector& grad) const;
 };
+
+}  // namespace QROT
 
 
 #endif  // REGOT_QROT_PROBLEM_H

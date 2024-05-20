@@ -9,16 +9,24 @@
 //============================= Wrapper =============================//
 //
 // https://eigen.tuxfamily.org/dox/group__MatrixfreeSolverExample.html
+namespace QROT {
+
 class HessianCG;
+
+}  // namespace QROT
+
 
 namespace Eigen {
 namespace internal {
     // Inherit SparseMatrix's traints
     template <>
-    struct traits<HessianCG>: public Eigen::internal::traits<Eigen::SparseMatrix<double>>
+    struct traits<QROT::HessianCG>: public Eigen::internal::traits<Eigen::SparseMatrix<double>>
     {};
 }
 }
+
+
+namespace QROT {
 
 // Wrap Hessian to be used with Eigen::ConjugateGradient
 class HessianCG: public Eigen::EigenBase<HessianCG>
@@ -28,6 +36,7 @@ private:
 
     const Hessian& m_hess;
     const double m_shift;
+    const double m_tau;
 
 public:
     // Required fields
@@ -53,25 +62,29 @@ public:
     }
 
     // Constructor
-    HessianCG(const Hessian& hess, double shift):
-        m_hess(hess), m_shift(shift)
+    HessianCG(const Hessian& hess, double shift, double tau):
+        m_hess(hess), m_shift(shift), m_tau(tau)
     {}
 
     // Const reference to members
     const Hessian& hess() const { return m_hess; }
     const double& shift() const { return m_shift; }
+    const double& tau() const { return m_tau; }
 };
+
+}  // namespace QROT
+
 
 namespace Eigen {
 namespace internal {
     template <typename Rhs>
-    struct generic_product_impl<HessianCG, Rhs, SparseShape, DenseShape, GemvProduct>: // GEMV stands for matrix-vector
-        generic_product_impl_base<HessianCG, Rhs, generic_product_impl<HessianCG, Rhs>>
+    struct generic_product_impl<QROT::HessianCG, Rhs, SparseShape, DenseShape, GemvProduct>: // GEMV stands for matrix-vector
+        generic_product_impl_base<QROT::HessianCG, Rhs, generic_product_impl<QROT::HessianCG, Rhs>>
     {
-        using Scalar = typename Product<HessianCG, Rhs>::Scalar;
+        using Scalar = typename Product<QROT::HessianCG, Rhs>::Scalar;
 
         template <typename Dest>
-        static void scaleAndAddTo(Dest& dst, const HessianCG& lhs, const Rhs& rhs, const Scalar& alpha)
+        static void scaleAndAddTo(Dest& dst, const QROT::HessianCG& lhs, const Rhs& rhs, const Scalar& alpha)
         {
             // This method should implement "dst += alpha * lhs * rhs" inplace,
             // however, for iterative solvers, alpha is always equal to 1, so let's not bother about it.
@@ -80,7 +93,7 @@ namespace internal {
 
             // Here we need to implement dst.noalias() += lhs * rhs,
             typename Dest::PlainObject res;
-            lhs.hess().apply_Deltax(rhs, lhs.shift(), res);
+            lhs.hess().apply_Deltax(rhs, lhs.shift(), lhs.tau(), res);
             dst += res;
         }
     };
@@ -89,6 +102,8 @@ namespace internal {
 //============================= Wrapper =============================//
 
 
+
+namespace QROT {
 
 //========================= Preconditioner ==========================//
 class HessianPrecond
@@ -137,12 +152,15 @@ public:
 
 
 
-// (H + lam * I)^{-1} * rhs
+// (H + lam * I + tau * K)^{-1} * rhs
 void hess_cg(
-    const Hessian& hess, const Eigen::VectorXd& rhs, double shift,
-    Eigen::VectorXd& res, double tol = 1e-6,
+    Eigen::VectorXd& res,
+    const Hessian& hess, const Eigen::VectorXd& rhs, double shift, double tau,
+    const Eigen::VectorXd& guess, double tol = 1e-8,
     bool verbose = false, std::ostream& cout = std::cout
 );
+
+}  // namespace QROT
 
 
 #endif  // REGOT_QROT_CG_H

@@ -5,6 +5,8 @@
 #include "config.h"
 #include "qrot_problem.h"
 
+namespace QROT {
+
 struct QROTResult
 {
 // Determine matrix type according to configuration
@@ -17,6 +19,7 @@ struct QROTResult
     using Vector = Eigen::VectorXd;
 
     int                 niter;
+    Vector              dual;
     ResultMatrix        plan;
     std::vector<double> obj_vals;
     std::vector<double> prim_vals;
@@ -38,5 +41,8 @@ struct QROTResult
         this->plan.noalias() = this->plan.cwiseMax(0.0) / reg;
     }
 };
+
+}  // namespace QROT
+
 
 #endif  // REGOT_QROT_RESULT_H

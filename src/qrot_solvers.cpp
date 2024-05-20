@@ -7,7 +7,7 @@
 
 namespace py = pybind11;
 using namespace pybind11::literals;
-
+using namespace QROT;
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 using RefConstVec = Eigen::Ref<const Vector>;
@@ -19,8 +19,9 @@ QROTResult qrot_apdagd(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_apdagd_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -32,8 +33,9 @@ QROTResult qrot_assn(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_assn_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -45,8 +47,9 @@ QROTResult qrot_bcd(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_bcd_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -58,8 +61,9 @@ QROTResult qrot_gd(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_gd_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -72,8 +76,10 @@ QROTResult qrot_grssn(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
+    solver_opts.shift = shift;
     qrot_grssn_internal(
-        result, M, a, b, reg, tol, max_iter, shift,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -85,8 +91,9 @@ QROTResult qrot_lbfgs_dual(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_lbfgs_dual_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -98,8 +105,9 @@ QROTResult qrot_lbfgs_semi_dual(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_lbfgs_semi_dual_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -111,8 +119,9 @@ QROTResult qrot_pdaam(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_pdaam_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -124,8 +133,9 @@ QROTResult qrot_s5n(
 )
 {
     QROTResult result;
+    QROTSolverOpts solver_opts;
     qrot_s5n_internal(
-        result, M, a, b, reg, tol, max_iter,
+        result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
     return result;
@@ -168,6 +178,7 @@ PYBIND11_MODULE(_internal, m) {
     py::class_<QROTResult>(m, "qrot_result")
         .def(py::init<>())
         .def_readwrite("niter", &QROTResult::niter)
+        .def_readwrite("dual", &QROTResult::dual)
         .def_readwrite("plan", &QROTResult::plan)
         .def_readwrite("obj_vals", &QROTResult::obj_vals)
         .def_readwrite("prim_vals", &QROTResult::prim_vals)

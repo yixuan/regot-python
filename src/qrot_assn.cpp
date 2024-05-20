@@ -3,10 +3,12 @@
 #include <iostream>
 #include <Eigen/Core>
 #include "qrot_hess.h"
-#include "qrot_cg.h"
+#include "qrot_linsolve.h"
 #include "qrot_problem.h"
 #include "qrot_result.h"
 #include "qrot_solvers.h"
+
+namespace QROT {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
@@ -19,6 +21,7 @@ using TimePoint = std::chrono::time_point<Clock, Duration>;
 void qrot_assn_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    const QROTSolverOpts& opts,
     double tol, int max_iter, bool verbose, std::ostream& cout
 )
 {
@@ -26,14 +29,18 @@ void qrot_assn_internal(
     const int n = M.rows();
     const int m = M.cols();
 
+    // Solver options
+    double tau = opts.tau;
+    int method = opts.method;
+
     // Algorithmic parameters
     constexpr double nu = 0.99, eta1 = 0.25, eta2 = 0.75,
         gamma1 = 2.0, gamma2 = 4.0, lam_min = 0.01, beta = 0.5,
-        cg_tol = 1e-6;
+        cg_tol = 1e-8;
     double xi = 0.0, lam = 1.0;
 
     // Dual variables and intermediate variables
-    Problem prob(M, a, b, reg);
+    Problem prob(M, a, b, reg, tau);
     Vector gamma(n + m), u(n + m), gu(n + m),
         v(n + m), gv(n + m), direc(n + m);
 
@@ -44,8 +51,20 @@ void qrot_assn_internal(
     std::vector<double> run_times;
 
     // Initial value
-    gamma.head(n).setZero();
-    prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    if (opts.x0.size() == gamma.size())
+    {
+        gamma.noalias() = opts.x0;
+    } else {
+        gamma.head(n).setZero();
+        prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    }
+
+    // Linear solver
+    QROTLinearSolver lin_sol;
+    lin_sol.method = method;
+    lin_sol.tau = tau;
+    lin_sol.cg_tol = cg_tol;
+    lin_sol.verbose = verbose;
 
     // Start timing
     TimePoint clock_t1 = Clock::now();
@@ -89,7 +108,7 @@ void qrot_assn_internal(
 
         // Compute search direction
         const double mu = lam * gnorm;
-        hess_cg(H, -g, mu, direc, cg_tol, verbose, cout);
+        lin_sol.solve(direc, H, -g, mu, true, cout);
         u.noalias() = gamma + direc;
         prob.dual_grad(u, gu);
         const double gunorm = gu.norm();
@@ -148,8 +167,11 @@ void qrot_assn_internal(
     // Save results
     result.niter = i;
     result.get_plan(gamma, prob);
+    result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
     result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }
+
+}  // namespace QROT

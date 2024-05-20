@@ -6,6 +6,8 @@
 #include "qrot_result.h"
 #include "qrot_solvers.h"
 
+namespace QROT {
+
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 
@@ -17,6 +19,7 @@ using TimePoint = std::chrono::time_point<Clock, Duration>;
 void qrot_pdaam_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    const QROTSolverOpts& opts,
     double tol, int max_iter, bool verbose, std::ostream& cout
 )
 {
@@ -29,7 +32,7 @@ void qrot_pdaam_internal(
     constexpr int max_inner = 20;
 
     // Dual variables and intermediate variables
-    Problem prob(M, a, b, reg);
+    Problem prob(M, a, b, reg, 0.0);
     Vector gamma(n + m), grad(n + m);
     // gamma = (alpha, beta)
     // lambda = -alpha, mu = -beta, dual = (lambda, mu) = -gamma
@@ -44,8 +47,13 @@ void qrot_pdaam_internal(
     std::vector<double> run_times;
 
     // Initial value
-    gamma.head(n).setZero();
-    prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    if (opts.x0.size() == gamma.size())
+    {
+        gamma.noalias() = opts.x0;
+    } else {
+        gamma.head(n).setZero();
+        prob.optimal_beta(gamma.head(n), gamma.tail(m));
+    }
     dual.noalias() = -gamma;
     dualp.noalias() = dual;
     dualt.noalias() = dual;
@@ -158,7 +166,7 @@ void qrot_pdaam_internal(
         mar_errs.push_back(mar_err);
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
-        
+
         if (verbose)
         {
             cout << "i = " << i << ", primal_obj = " << primal_obj <<
@@ -173,8 +181,11 @@ void qrot_pdaam_internal(
 
     // Save results
     result.niter = i;
+    result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
     result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }
+
+}  // namespace QROT

@@ -4,6 +4,9 @@
 #include <iostream>
 #include <vector>
 #include <Eigen/Core>
+#include <Eigen/SparseCore>
+
+namespace QROT {
 
 // The generalized Hessian matrix has a special structure
 //     H = [diag(sigma * 1m)              sigma]
@@ -36,6 +39,8 @@ class Hessian
 private:
     using Vector = Eigen::VectorXd;
     using Matrix = Eigen::MatrixXd;
+    using SpMat = Eigen::SparseMatrix<double>;
+    using ConstRefVec = Eigen::Ref<const Vector>;
 
     int m_n;
     int m_m;
@@ -88,6 +93,29 @@ public:
         }
     }
 
+    // Convert to Eigen sparse matrix, mainly for debugging purpose
+    inline SpMat to_spmat() const
+    {
+        std::vector<Eigen::Triplet<double>> coeffs;
+        // Diagonal elements
+        for (int i = 0; i < m_n; i++)
+            coeffs.emplace_back(i, i, m_h1[i]);
+        for (int i = 0; i < m_m; i++)
+            coeffs.emplace_back(m_n + i, m_n + i, m_h2[i]);
+        // Off-diagonal elements
+        for (std::size_t i = 0; i < m_sigma.size(); i++)
+        {
+            for (auto e: m_sigma[i])
+            {
+                coeffs.emplace_back(i, m_n + e, 1.0);
+                coeffs.emplace_back(m_n + e, i, 1.0);
+            }
+        }
+        SpMat H(m_n + m_m, m_n + m_m);
+        H.setFromTriplets(coeffs.begin(), coeffs.end());
+        return H;
+    }
+
     // Initialization and resetting
     inline void reset(int n, int m)
     {
@@ -98,13 +126,13 @@ public:
         m_h2.resize(m);
         m_h2.setZero();
         m_sigma.resize(n);
-        for(auto & e: m_sigma)
+        for (auto & e: m_sigma)
         {
             e.clear();
             e.reserve(int(0.1 * m));
         }
         m_sigmat.resize(m);
-        for(auto & e: m_sigmat)
+        for (auto & e: m_sigmat)
         {
             e.clear();
             e.reserve(int(0.1 * n));
@@ -129,13 +157,26 @@ public:
     // res = sigma' * x, x [n], res [m]
     void apply_sigmatx(const double* x, double* res) const;
 
+    // Compute A^(-1) * x
+    void solve_Ax(const ConstRefVec& x, double shift, double tau, Vector& res) const;
+
+    // Compute B * x
+    void apply_Bx(const ConstRefVec& x, double tau, Vector& res) const;
+
+    // Compute C * x
+    void apply_Cx(const ConstRefVec& x, double tau, Vector& res) const;
+
     // Compute Delta * x
     // Delta * x = h2 .* x + lam * x - sigma' * ((sigma * x) ./ (h1 .+ lam))
-    void apply_Deltax(const Vector& x, double shift, Vector& res) const;
+    void apply_Deltax(const Vector& x, double shift, double tau, Vector& res) const;
 
-    // Compute (H + shift * I) * x
-    void apply_Hx(const Vector& x, double shift, Vector& res) const;
+    // Compute (H + shift * I + tau * K) * x
+    // K = vv', v = (1n, -1m)
+    // K * x = (v'x) v = (c * 1n, -c * 1m), c = x[:n].sum() - x[n:].sum()
+    void apply_Hx(const Vector& x, double shift, double tau, Vector& res) const;
 };
+
+}  // namespace QROT
 
 
 #endif  // REGOT_QROT_HESS_H
