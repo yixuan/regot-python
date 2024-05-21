@@ -212,6 +212,7 @@ SinkhornResult sinkhorn_ssns(
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    solver_opts.method = 1;
     Sinkhorn::sinkhorn_ssns_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
