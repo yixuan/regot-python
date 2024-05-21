@@ -62,6 +62,8 @@ ext_modules = [
         include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
+        extra_compile_args = ["-fopenmp"],
+        extra_link_args = ["-fopenmp"]
         ),
 ]
 
