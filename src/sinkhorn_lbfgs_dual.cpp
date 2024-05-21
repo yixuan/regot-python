@@ -90,7 +90,7 @@ void sinkhorn_lbfgs_dual_internal(
     // L-BFGS parameters
     LBFGSParam<double> param;
     param.epsilon = tol;
-    param.epsilon_rel = tol;
+    param.epsilon_rel = 0.0;
     param.max_iterations = max_iter;
 
     // Create solver

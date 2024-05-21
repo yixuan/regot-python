@@ -1,4 +1,5 @@
 #include <chrono>
+#include <numeric>
 #include "sinkhorn_hess.h"
 
 namespace Sinkhorn {
@@ -15,7 +16,8 @@ using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double, std::milli>;
 using TimePoint = std::chrono::time_point<Clock, Duration>;
 
-inline double select_small_thresh(double* data, int n, double delta, bool inplace)
+// For this version, use "*data > thresh" in apply_thresh_mask()
+inline double select_small_thresh1(double* data, int n, double delta, bool inplace)
 {
     // Get the sorted values
     Vector sorted;
@@ -42,11 +44,65 @@ inline double select_small_thresh(double* data, int n, double delta, bool inplac
     return thresh;
 }
 
+// For this version, use "*data >= thresh" in apply_thresh_mask()
+inline double select_small_thresh(double* data, int n, double delta, bool inplace)
+{
+    // Scan the array once to get the sum
+    const double sum = std::accumulate(data, data + n, double(0));
+
+    // Get the sorted values
+    Vector sorted;
+    double* sorted_data;
+    if (inplace)
+    {
+        sorted_data = data;
+    } else {
+        sorted.resize(n);
+        std::copy(data, data + n, sorted.data());
+        sorted_data = sorted.data();
+    }
+
+    // Each time partially sort m values
+    int m = int(n / 100);
+    m = std::max(m, 10);
+    m = std::min(m, n);
+    double* start = sorted_data;
+    double* middle = start + m;
+    double* end = start + n;
+
+    // Compute cumsum until the value is smaller than delta
+    double cumsum = sum, thresh = 0.0;
+    for (; middle <= end; middle += m)
+    {
+        // Partially sort [start, middle) in decreasing order
+        std::partial_sort(start, middle, end, std::greater<double>());
+        for (; start < middle; start++)
+        {
+            thresh = *start;
+            cumsum -= thresh;
+            if (cumsum <= delta)
+                return thresh;
+        }
+        start = middle;
+    }
+
+    // Remaining part
+    std::sort(start, end, std::greater<double>());
+    for(; start < end; start++)
+    {
+        thresh = *start;
+        cumsum -= thresh;
+        if (cumsum <= delta)
+            return thresh;
+    }
+    return thresh;
+}
+
 inline void apply_thresh_mask(double* data, int n, double thresh)
 {
     for (int i = 0; i < n; i++, data++)
     {
-        if (*data > thresh)
+        if (*data >= thresh)
             *data = 0.0;
     }
 }
@@ -55,7 +111,7 @@ inline void apply_thresh_mask(double* data, int n, int stride, double thresh)
 {
     for (int i = 0; i < n; i++, data += stride)
     {
-        if (*data > thresh)
+        if (*data >= thresh)
             *data = 0.0;
     }
 }
@@ -74,6 +130,7 @@ void Hessian::compute_hess(Matrix& T, double reg, double delta)
     m_h2.noalias() = T.leftCols(m_m - 1).colwise().sum().transpose() / reg;
 
     // Thresholding T by columns
+    // TimePoint clock_t1 = Clock::now();
     Matrix Delta = T;
     Delta.col(m_m - 1).setZero();
     #pragma omp parallel for schedule(static)
@@ -83,6 +140,7 @@ void Hessian::compute_hess(Matrix& T, double reg, double delta)
         double thresh = select_small_thresh(T.data() + offset, m_n, delta, false);
         apply_thresh_mask(Delta.data() + offset, m_n, thresh);
     }
+    // TimePoint clock_t2 = Clock::now();
     // Thresholding Delta by rows
     // Test row sums
     Vector rowsum = Delta.rowwise().sum();
@@ -97,9 +155,14 @@ void Hessian::compute_hess(Matrix& T, double reg, double delta)
             apply_thresh_mask(Delta.data() + i, m_m - 1, m_n, thresh);
         }
     }
+    // TimePoint clock_t3 = Clock::now();
     // Generate sparse matrix
     m_sigmad = (T - Delta).leftCols(m_m - 1).sparseView();
     m_sigmad /= reg;
+    // TimePoint clock_t4 = Clock::now();
+    // std::cout << "t2 - t1 = " << (clock_t2 - clock_t1).count() <<
+    //     ", t3 - t2 = " << (clock_t3 - clock_t2).count() <<
+    //     ", t4 - t3 = " << (clock_t4 - clock_t3).count() << std::endl;
 }
 
 void Hessian::compute_hess2(Matrix& T, double reg, double delta)

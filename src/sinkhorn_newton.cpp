@@ -87,7 +87,8 @@ void sinkhorn_newton_internal(
         clock_t1 = Clock::now();
 
         // Convergence test
-        if (gnorm < tol)
+        // Also exit if objective function value is not finite
+        if ((gnorm < tol) || (!std::isfinite(f)))
             break;
 
         // Compute search direction

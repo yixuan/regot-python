@@ -79,7 +79,7 @@ void sinkhorn_ssns_internal(
     Vector g;
     Hessian H;
     Matrix T(n, m);
-    f = prob.dual_obj_grad(gamma, g, T);
+    f = prob.dual_obj_grad(gamma, g, T, true);
     double gnorm = g.norm();
     double delta = nu0 * std::pow(gnorm, pow_delta);
     H.compute_hess(T, reg, delta);
@@ -95,7 +95,8 @@ void sinkhorn_ssns_internal(
     density.push_back(H.density());
 
     int i;
-    std::vector<double> alphas{1.0, 0.5, 0.25, 0.125, 0.0625, 0.01};
+    // std::vector<double> alphas{1.0, 0.5, 0.25, 0.125, 0.0625, 0.01};
+    std::vector<double> alphas{1.0, 0.5, 0.25, 0.1};
     // std::vector<double> alphas{1.0, 0.5, 0.1};
     // std::vector<double> alphas_small{0.05, 0.01, 0.001, 1e-4};
     // bool use_alpha_small = true;
@@ -128,12 +129,14 @@ void sinkhorn_ssns_internal(
             lin_sol.cg_x0.setZero();
         }
         bool same_sparsity = (rho <= 0.0);
+        // TimePoint tt1 = Clock::now();
         lin_sol.solve(direc, H, -g, shift, !same_sparsity, cout);
+        // TimePoint tt2 = Clock::now();
 
         // Step size selection
         double newf;
         double alpha = prob.line_selection(
-            alphas, gamma, direc, f, newf, verbose, cout);
+            alphas, gamma, direc, f, T, newf, verbose, cout);
         // if (newf >= f)
         // {
         //     if (use_alpha_small)
@@ -175,11 +178,20 @@ void sinkhorn_ssns_internal(
         // Get the new f, g, H if gamma is updated
         if (rho > 0.0)
         {
-            f = prob.dual_obj_grad(gamma, g, T);
+            // TimePoint tt3 = Clock::now();
+            // If rho > 0, then newf < f, which means that T has been comoputed
+            // in line selection
+            f = prob.dual_obj_grad(gamma, g, T, false);
+            // TimePoint tt4 = Clock::now();
             gnorm = g.norm();
             delta = nu0 * std::pow(gnorm, pow_delta);
             H.compute_hess(T, reg, delta);
+            // TimePoint tt5 = Clock::now();
+            // std::cout << "solve = " << (tt2 - tt1).count() << std::endl;
+            // std::cout << "grad = " << (tt4 - tt3).count() << std::endl;
+            // std::cout << "hess = " << (tt5 - tt4).count() << std::endl;
         }
+        // std::cout << std::endl;
 
         // Record timing
         clock_t2 = Clock::now();

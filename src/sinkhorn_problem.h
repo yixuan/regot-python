@@ -72,6 +72,9 @@ public:
     // T = exp((alpha (+) beta - M) / reg)
     double dual_obj(const Vector& gamma) const;
 
+    // Compute the objective function and T
+    double dual_obj(const Vector& gamma, Matrix& T) const;
+
     // Compute the gradient
     void dual_grad(const Vector& gamma, Vector& grad) const;
 
@@ -79,7 +82,7 @@ public:
     double dual_obj_grad(const Vector& gamma, Vector& grad) const;
 
     // Compute the objective function, gradient, and T
-    double dual_obj_grad(const Vector& gamma, Vector& grad, Matrix& T) const;
+    double dual_obj_grad(const Vector& gamma, Vector& grad, Matrix& T, bool computeT) const;
 
     // Compute the objective function, gradient, and the true Hessian
     void dual_obj_grad_densehess(
@@ -94,7 +97,8 @@ public:
     // Select step size
     double line_selection(
         const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
-        double curobj, double& objval, bool verbose = false, std::ostream& cout = std::cout
+        double curobj, Matrix& T, double& objval, bool verbose = false,
+        std::ostream& cout = std::cout
     ) const;
 
     // Optimal beta given alpha

@@ -1,4 +1,4 @@
-#include <chrono>
+// #include <chrono>
 #include "sinkhorn_linsolve.h"
 #include "sinkhorn_cg.h"
 
@@ -7,10 +7,10 @@ namespace Sinkhorn {
 using Matrix = Eigen::MatrixXd;
 using Vector = Eigen::VectorXd;
 using SpMat = Eigen::SparseMatrix<double>;
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
+// // https://stackoverflow.com/a/34781413
+// using Clock = std::chrono::high_resolution_clock;
+// using Duration = std::chrono::duration<double, std::milli>;
+// using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 // (Hs + lam * I)^{-1} * rhs, Hl = Hs + lam * I
 // Method: 0 - CG
@@ -58,10 +58,10 @@ void SinkhornLinearSolver::solve(
         SpMat I(n + m - 1, n + m - 1);
         I.setIdentity();
         bool only_lower = (this->method != 3);
-        TimePoint clock_t1 = Clock::now();
+        // TimePoint clock_t1 = Clock::now();
         SpMat Hl = hess.to_spmat(only_lower) + shift * I;
-        TimePoint clock_t2 = Clock::now();
-        std::cout << "tosparse = " << (clock_t2 - clock_t1).count() << std::endl;
+        // TimePoint clock_t2 = Clock::now();
+        // std::cout << "tosparse = " << (clock_t2 - clock_t1).count() << std::endl;
         res.resizeLike(rhs);
 
         if (this->method == 2)

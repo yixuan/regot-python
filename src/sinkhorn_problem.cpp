@@ -66,8 +66,15 @@ double Problem::primal_val(const Vector& gamma) const
 // T = exp((alpha (+) beta - M) / reg)
 double Problem::dual_obj(const Vector& gamma) const
 {
-    // Compute T = exp((alpha (+) beta - M) / reg)
+    // Call the second version below
     Matrix T(m_n, m_m);
+    return dual_obj(gamma, T);
+}
+
+// Compute the objective function and T
+double Problem::dual_obj(const Vector& gamma, Matrix& T) const
+{
+    // Compute T = exp((alpha (+) beta - M) / reg)
     compute_T(gamma, T);
 
     // Compute objective function value
@@ -97,14 +104,15 @@ double Problem::dual_obj_grad(const Vector& gamma, Vector& grad) const
 {
     // Call the second version below
     Matrix T(m_n, m_m);
-    return dual_obj_grad(gamma, grad, T);
+    return dual_obj_grad(gamma, grad, T, true);
 }
 
 // Compute the objective function, gradient, and T
-double Problem::dual_obj_grad(const Vector& gamma, Vector& grad, Matrix& T) const
+double Problem::dual_obj_grad(const Vector& gamma, Vector& grad, Matrix& T, bool computeT) const
 {
     // Compute T = exp((alpha (+) beta - M) / reg)
-    compute_T(gamma, T);
+    if (computeT)
+        compute_T(gamma, T);
 
     grad.resize(m_n + m_m - 1);
     // g(alpha) = T * 1m - a
@@ -128,7 +136,7 @@ void Problem::dual_obj_grad_densehess(
 {
     // Compute obj, grad, and T = exp((alpha (+) beta - M) / reg)
     Matrix T(m_n, m_m);
-    obj = dual_obj_grad(gamma, grad, T);
+    obj = dual_obj_grad(gamma, grad, T, true);
 
     hess.resize(m_n + m_m - 1, m_n + m_m - 1);
     hess.setZero();
@@ -151,7 +159,7 @@ void Problem::dual_obj_grad_hess(
 {
     // Compute obj, grad, and T = exp((alpha (+) beta - M) / reg)
     Matrix T(m_n, m_m);
-    obj = dual_obj_grad(gamma, grad, T);
+    obj = dual_obj_grad(gamma, grad, T, true);
     // Compute sparsified Hessian from T
     hess.compute_hess(T, m_reg, delta);
 }
@@ -159,7 +167,8 @@ void Problem::dual_obj_grad_hess(
 // Select a step size
 double Problem::line_selection(
     const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
-    double curobj, double& objval, bool verbose, std::ostream& cout
+    double curobj, Matrix& T, double& objval, bool verbose,
+    std::ostream& cout
 ) const
 {
     const int nc = static_cast<int>(candid.size());
@@ -169,7 +178,7 @@ double Problem::line_selection(
     {
         const double alpha = candid[i];
         Vector newgamma = gamma + alpha * direc;
-        const double objfn = dual_obj(newgamma);
+        const double objfn = dual_obj(newgamma, T);
         if (objfn < objval)
         {
             best_step = alpha;
