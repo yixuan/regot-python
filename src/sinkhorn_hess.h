@@ -114,7 +114,7 @@ public:
     }
 
     // Input T, compute the sparsified Hessian representations
-    void compute_hess(Matrix& T, double reg, double delta);
+    void compute_hess(Matrix& T, double reg, double delta, double density_hint);
     void compute_hess2(Matrix& T, double reg, double delta);
 
     // Convert to an Eigen sparse matrix

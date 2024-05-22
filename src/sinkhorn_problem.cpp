@@ -161,7 +161,7 @@ void Problem::dual_obj_grad_hess(
     Matrix T(m_n, m_m);
     obj = dual_obj_grad(gamma, grad, T, true);
     // Compute sparsified Hessian from T
-    hess.compute_hess(T, m_reg, delta);
+    hess.compute_hess(T, m_reg, delta, 0.001);
 }
 
 // Select a step size

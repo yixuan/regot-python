@@ -36,7 +36,7 @@ void sinkhorn_ssns_internal(
     // Algorithmic parameters
     constexpr double rho_t1 = 0.25, rho_t2 = 0.75,
         mu_s1 = 4.0, mu_s2 = 0.5, kappa = 0.001,
-        pow_lam = 1.0, pow_delta = 1.5,
+        pow_lam = 1.0, pow_delta = 1.0,
         cg_tol = 1e-8, nu0 = 0.01;
 
     // Parameters that are adjusted in each iteration
@@ -82,7 +82,7 @@ void sinkhorn_ssns_internal(
     f = prob.dual_obj_grad(gamma, g, T, true);
     double gnorm = g.norm();
     double delta = nu0 * std::pow(gnorm, pow_delta);
-    H.compute_hess(T, reg, delta);
+    H.compute_hess(T, reg, delta, 0.001);
     // Record timing
     TimePoint clock_t2 = Clock::now();
 
@@ -185,7 +185,7 @@ void sinkhorn_ssns_internal(
             // TimePoint tt4 = Clock::now();
             gnorm = g.norm();
             delta = nu0 * std::pow(gnorm, pow_delta);
-            H.compute_hess(T, reg, delta);
+            H.compute_hess(T, reg, delta, H.density());
             // TimePoint tt5 = Clock::now();
             // std::cout << "solve = " << (tt2 - tt1).count() << std::endl;
             // std::cout << "grad = " << (tt4 - tt3).count() << std::endl;

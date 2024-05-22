@@ -16,8 +16,7 @@ using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double, std::milli>;
 using TimePoint = std::chrono::time_point<Clock, Duration>;
 
-// For this version, use "*data > thresh" in apply_thresh_mask()
-inline double select_small_thresh1(double* data, int n, double delta, bool inplace)
+inline double select_small_thresh_vanilla(double* data, int n, double delta, bool inplace)
 {
     // Get the sorted values
     Vector sorted;
@@ -36,16 +35,16 @@ inline double select_small_thresh1(double* data, int n, double delta, bool inpla
     double cumsum = 0.0, thresh = 0.0;
     for (int i = 0; i < n; i++, sorted_data++)
     {
-        cumsum += *sorted_data;
+        thresh = *sorted_data;
+        cumsum += thresh;
         if (cumsum > delta)
             break;
-        thresh = *sorted_data;
     }
     return thresh;
 }
 
-// For this version, use "*data >= thresh" in apply_thresh_mask()
-inline double select_small_thresh(double* data, int n, double delta, bool inplace)
+// Search maximum elements first
+inline double select_small_thresh_search_max(double* data, int n, double delta, bool inplace)
 {
     // Scan the array once to get the sum
     const double sum = std::accumulate(data, data + n, double(0));
@@ -98,6 +97,66 @@ inline double select_small_thresh(double* data, int n, double delta, bool inplac
     return thresh;
 }
 
+// Search minimum elements first
+inline double select_small_thresh_search_min(double* data, int n, double delta, bool inplace)
+{
+    // Get the sorted values
+    Vector sorted;
+    double* sorted_data;
+    if (inplace)
+    {
+        sorted_data = data;
+    } else {
+        sorted.resize(n);
+        std::copy(data, data + n, sorted.data());
+        sorted_data = sorted.data();
+    }
+
+    // Each time partially sort m values
+    int m = int(n / 10);
+    m = std::max(m, 10);
+    m = std::min(m, n);
+    double* start = sorted_data;
+    double* middle = start + m;
+    double* end = start + n;
+
+    // Compute cumsum until the value is greater than delta
+    double cumsum = 0.0, thresh = 0.0;
+    for (; middle <= end; middle += m)
+    {
+        // Partially sort [start, middle) in decreasing order
+        std::partial_sort(start, middle, end);
+        for (; start < middle; start++)
+        {
+            thresh = *start;
+            cumsum += thresh;
+            if (cumsum > delta)
+                return thresh;
+        }
+        start = middle;
+    }
+
+    // Remaining part
+    std::sort(start, end);
+    for(; start < end; start++)
+    {
+        thresh = *start;
+        cumsum += thresh;
+        if (cumsum > delta)
+            return thresh;
+    }
+    return thresh;
+}
+
+// Determine search scheme according to an estimate of the matrix density
+inline double select_small_thresh(double* data, int n, double delta, bool inplace, double density_hint)
+{
+    if (density_hint < 0.1)
+        return select_small_thresh_search_max(data, n, delta, inplace);
+
+    return select_small_thresh_search_min(data, n, delta, inplace);
+}
+
 inline void apply_thresh_mask(double* data, int n, double thresh)
 {
     for (int i = 0; i < n; i++, data++)
@@ -117,7 +176,7 @@ inline void apply_thresh_mask(double* data, int n, int stride, double thresh)
 }
 
 // Input gamma and M, compute the sparsified Hessian representations
-void Hessian::compute_hess(Matrix& T, double reg, double delta)
+void Hessian::compute_hess(Matrix& T, double reg, double delta, double density_hint)
 {
     // Initialization
     const int n = T.rows();
@@ -137,7 +196,7 @@ void Hessian::compute_hess(Matrix& T, double reg, double delta)
     for (int j = 0; j < m_m - 1; j++)
     {
         int offset = m_n * j;
-        double thresh = select_small_thresh(T.data() + offset, m_n, delta, false);
+        double thresh = select_small_thresh(T.data() + offset, m_n, delta, false, density_hint);
         apply_thresh_mask(Delta.data() + offset, m_n, thresh);
     }
     // TimePoint clock_t2 = Clock::now();
@@ -151,7 +210,7 @@ void Hessian::compute_hess(Matrix& T, double reg, double delta)
         if (rowsum[i] > 2.0 * delta)
         {
             Vector row = Delta.row(i).transpose();
-            double thresh = select_small_thresh(row.data(), m_m - 1, delta, true);
+            double thresh = select_small_thresh(row.data(), m_m - 1, delta, true, density_hint);
             apply_thresh_mask(Delta.data() + i, m_m - 1, m_n, thresh);
         }
     }
@@ -183,7 +242,7 @@ void Hessian::compute_hess2(Matrix& T, double reg, double delta)
     for (int j = 0; j < m_m - 1; j++)
     {
         int offset = m_n * j;
-        double thresh = select_small_thresh(T.data() + offset, m_n, delta, false);
+        double thresh = select_small_thresh_vanilla(T.data() + offset, m_n, delta, false);
         apply_thresh_mask(Delta1.data() + offset, m_n, thresh);
     }
     // Thresholding T by rows
@@ -192,7 +251,7 @@ void Hessian::compute_hess2(Matrix& T, double reg, double delta)
     for (int i = 0; i < m_n; i++)
     {
         Vector row = Delta2.row(i).transpose();
-        double thresh = select_small_thresh(row.data(), m_m - 1, delta, false);
+        double thresh = select_small_thresh_vanilla(row.data(), m_m - 1, delta, false);
         apply_thresh_mask(Delta2.data() + i, m_m - 1, m_n, thresh);
     }
     // Generate sparse matrix
