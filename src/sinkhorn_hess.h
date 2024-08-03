@@ -114,8 +114,10 @@ public:
     }
 
     // Input T, compute the sparsified Hessian representations
-    void compute_hess(Matrix& T, double reg, double delta, double density_hint);
-    void compute_hess2(Matrix& T, double reg, double delta);
+    void compute_hess(
+        const Matrix& T, const Vector& Trowsum, const Vector& Ttcolsum,
+        double reg, double delta, double density_hint
+    );
 
     // Convert to an Eigen sparse matrix
     SpMat to_spmat(bool only_lower=true) const;

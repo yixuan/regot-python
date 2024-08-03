@@ -26,20 +26,7 @@ private:
     Vector       m_logb;
 
     // Compute T = exp((alpha (+) beta - M) / reg)
-    inline void compute_T(const Vector& gamma, Matrix& T) const
-    {
-        T.resize(m_n, m_m);
-
-        // Extract betat and set beta=(betat, 0)
-        Vector beta(m_m);
-        beta.head(m_m - 1).noalias() = gamma.tail(m_m - 1);
-        beta[m_m - 1] = 0.0;
-
-        // Compute T
-        T.noalias() = (gamma.head(m_n).replicate(1, m_m) +
-            beta.transpose().replicate(m_n, 1) - m_M) / m_reg;
-        T.array() = T.array().exp();
-    }
+    void compute_T(const Vector& gamma, Matrix& T) const;
 
 public:
     Problem(const RefConstMat& M, const RefConstVec& a, const RefConstVec& b, double reg):
@@ -90,8 +77,11 @@ public:
     ) const;
 
     // Compute the objective function, gradient, and sparsified Hessian
-    void dual_obj_grad_hess(
-        const Vector& gamma, double delta, double& obj, Vector& grad, Hessian& hess
+    // void dual_obj_grad_hess(
+    //     const Vector& gamma, double delta, double& obj, Vector& grad, Hessian& hess
+    // ) const;
+    void dual_sparsified_hess(
+        const Matrix& T, const Vector& grad, double delta, double density_hint, Hessian& hess
     ) const;
 
     // Select step size

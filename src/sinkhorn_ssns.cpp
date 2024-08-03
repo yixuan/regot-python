@@ -8,6 +8,9 @@
 #include "sinkhorn_result.h"
 #include "sinkhorn_solvers.h"
 
+// Whether to print detailed timing information
+// #define TIMING 1
+
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
@@ -82,7 +85,7 @@ void sinkhorn_ssns_internal(
     f = prob.dual_obj_grad(gamma, g, T, true);
     double gnorm = g.norm();
     double delta = nu0 * std::pow(gnorm, pow_delta);
-    H.compute_hess(T, reg, delta, 0.001);
+    prob.dual_sparsified_hess(T, g, delta, 0.001, H);
     // Record timing
     TimePoint clock_t2 = Clock::now();
 
@@ -105,8 +108,9 @@ void sinkhorn_ssns_internal(
         if (verbose)
         {
             cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << ", rho = " << rho <<
-                ", mu = " << mu << ", density = " << H.density() << std::endl;
+                ", gnorm = " << gnorm << std::endl;
+            cout << "rho = " << rho << ", mu = " << mu <<
+                ", density = " << H.density() << std::endl;
         }
 
         // Start timing
@@ -129,9 +133,13 @@ void sinkhorn_ssns_internal(
             lin_sol.cg_x0.setZero();
         }
         bool same_sparsity = (rho <= 0.0);
-        // TimePoint tt1 = Clock::now();
+#ifdef TIMING
+        TimePoint clock_s1 = Clock::now();
+#endif
         lin_sol.solve(direc, H, -g, shift, !same_sparsity, cout);
-        // TimePoint tt2 = Clock::now();
+#ifdef TIMING
+        TimePoint clock_s2 = Clock::now();
+#endif
 
         // Step size selection
         double newf;
@@ -151,9 +159,16 @@ void sinkhorn_ssns_internal(
         //     use_alpha_small = true;
         // }
 
+#ifdef TIMING
+        TimePoint clock_s3 = Clock::now();
+#endif
+
         // Estimate rho
         step.noalias() = alpha * direc;
         H.apply_Hsx(step, Hstep);
+#ifdef TIMING
+        TimePoint clock_s4 = Clock::now();
+#endif
         const double numer = f - newf;
         const double denom = -g.dot(step) - 0.5 * step.dot(Hstep);
         rho = numer / denom;
@@ -178,20 +193,36 @@ void sinkhorn_ssns_internal(
         // Get the new f, g, H if gamma is updated
         if (rho > 0.0)
         {
-            // TimePoint tt3 = Clock::now();
-            // If rho > 0, then newf < f, which means that T has been comoputed
+#ifdef TIMING
+            TimePoint clock_s5 = Clock::now();
+#endif
+
+            // If rho > 0, then newf < f, which means that T has been computed
             // in line selection
             f = prob.dual_obj_grad(gamma, g, T, false);
-            // TimePoint tt4 = Clock::now();
+
+#ifdef TIMING
+            TimePoint clock_s6 = Clock::now();
+#endif
+
             gnorm = g.norm();
             delta = nu0 * std::pow(gnorm, pow_delta);
-            H.compute_hess(T, reg, delta, H.density());
-            // TimePoint tt5 = Clock::now();
-            // std::cout << "solve = " << (tt2 - tt1).count() << std::endl;
-            // std::cout << "grad = " << (tt4 - tt3).count() << std::endl;
-            // std::cout << "hess = " << (tt5 - tt4).count() << std::endl;
+            prob.dual_sparsified_hess(T, g, delta, H.density(), H);
+
+#ifdef TIMING
+            TimePoint clock_s7 = Clock::now();
+            cout << "[summary]=================================================" << std::endl;
+            cout << "solve = " << (clock_s2 - clock_s1).count() <<
+                ", grad = " << (clock_s6 - clock_s5).count() <<
+                ", hess = " << (clock_s7 - clock_s6).count() << std::endl;
+            cout << "line = " << (clock_s3 - clock_s2).count() <<
+                ", rho = " << (clock_s4 - clock_s3).count() << std::endl;
+            cout << "==========================================================" << std::endl;
+#endif
         }
-        // std::cout << std::endl;
+
+        if (verbose)
+            cout << std::endl;
 
         // Record timing
         clock_t2 = Clock::now();

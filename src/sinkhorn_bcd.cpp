@@ -6,6 +6,9 @@
 #include "sinkhorn_result.h"
 #include "sinkhorn_solvers.h"
 
+// Whether to print detailed timing information
+// #define TIMING 1
+
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
@@ -83,8 +86,17 @@ void sinkhorn_bcd_internal(
 
         // Optimal alpha given beta
         prob.optimal_alpha(beta, alpha);
+
+#ifdef TIMING
+        TimePoint clock_s1 = Clock::now();
+#endif
+
         // Optimal beta given alpha
         prob.optimal_beta(alpha, beta);
+
+#ifdef TIMING
+        TimePoint clock_s2 = Clock::now();
+#endif
 
         gamma.head(n).array() = alpha.array() + beta[m - 1];
         gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
@@ -94,6 +106,14 @@ void sinkhorn_bcd_internal(
         gnorm = grad.norm();
         // Record timing
         clock_t2 = Clock::now();
+
+#ifdef TIMING
+        cout << "[summary]=================================================" << std::endl;
+        cout << "alpha = " << (clock_s1 - clock_t1).count() <<
+            ", beta = " << (clock_s2 - clock_s1).count() <<
+            ", grad = " << (clock_t2 - clock_s2).count() << std::endl;
+        cout << "==========================================================" << std::endl << std::endl;
+#endif
 
         // Collect progress statistics
         prim_val = prob.primal_val(gamma);
