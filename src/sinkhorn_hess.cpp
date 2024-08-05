@@ -1,4 +1,3 @@
-#include <chrono>
 #include "sinkhorn_hess.h"
 #include "sinkhorn_sparsify.h"
 
@@ -11,10 +10,6 @@ using ConstRefVec = Eigen::Ref<const Vector>;
 using MapVec = Eigen::Map<Vector>;
 using ConstMapVec = Eigen::Map<const Vector>;
 using SpMat = Eigen::SparseMatrix<double>;
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 // Input gamma and M, compute the sparsified Hessian representations
 void Hessian::compute_hess(

@@ -10,12 +10,67 @@ using RefConstVec = Eigen::Ref<const Vector>;
 using RefMat = Eigen::Ref<Matrix>;
 using RefConstMat = Eigen::Ref<const Matrix>;
 
+// log(exp(x[0]) + exp(x[1]) + ... + exp(x[n-1]))
 inline double log_sum_exp(const double* data, const int n)
 {
-    double c = *(std::max_element(data, data + n));
+    const double c = *(std::max_element(data, data + n));
     double res = 0.0;
+
+#ifdef __AVX2__
+    // Packet type
+    using Scalar = double;
+    using Eigen::internal::ploadu;
+    using Eigen::internal::pset1;
+    using Eigen::internal::pexp;
+    using Eigen::internal::predux;
+    using Packet = Eigen::internal::packet_traits<Scalar>::type;
+    constexpr unsigned char PacketSize = Eigen::internal::packet_traits<Scalar>::size;
+    constexpr unsigned char Peeling = 2;
+    constexpr unsigned char Increment = Peeling * PacketSize;
+
+    // Vectorized scalars
+    const Packet vc = pset1<Packet>(c);
+
+    // Compute for loop end points
+    // n % (2^k) == n & (2^k-1), see https://stackoverflow.com/q/3072665
+    // const Index peeling_end = n - n % Increment;
+    const int aligned_end = n - (n & (PacketSize - 1));
+    const int peeling_end = n - (n & (Increment - 1));
+
+    // Working pointers
+    const double* xdata = data;
+    Packet vres = pset1<Packet>(0);
+    for (int i = 0; i < peeling_end; i += Increment)
+    {
+        // Load data
+        Packet vx1 = ploadu<Packet>(xdata);
+        Packet vx2 = ploadu<Packet>(xdata + PacketSize);
+        // Compute result
+        Packet vres1 = pexp(vx1 - vc);
+        Packet vres2 = pexp(vx2 - vc);
+        // Reduce
+        vres += vres1 + vres2;
+
+        xdata += Increment;
+    }
+    if (aligned_end != peeling_end)
+    {
+        xdata = data + peeling_end;
+
+        Packet vx = ploadu<Packet>(xdata);
+        vres += pexp(vx - c);
+    }
+    res = predux(vres);
+    // Remaining elements
+    for (int i = aligned_end; i < n; i++)
+    {
+        res += std::exp(data[i] - c);
+    }
+#else
     for (int i = 0; i < n; i++, data++)
         res += std::exp(*data - c);
+#endif
+
     return c + std::log(res);
 }
 
@@ -25,8 +80,12 @@ inline void log_sum_exp_rowwise(const RefConstMat& data, RefVec res)
     const int m = data.cols();
     res.resize(n);
     Vector c = data.rowwise().maxCoeff();
+
+    // // Implementation 1
     // res.array() = (data - c.replicate(1, m)).array().exp().rowwise().sum();
     // res.array() = c.array() + res.array().log();
+
+    // Implementation 2
     res.setZero();
     const double* cend = c.data() + n;
     for (int j = 0; j < m; j++)
@@ -48,15 +107,43 @@ inline void log_sum_exp_colwise(const RefConstMat& data, RefVec res)
     const int n = data.rows();
     const int m = data.cols();
     res.resize(m);
+
+    // Implementation 1
     Vector c = data.colwise().maxCoeff();
     res.array() = (data - c.transpose().replicate(n, 1)).array().exp().colwise().sum();
     res.array() = c.array() + res.array().log();
+
+    // // Implementation 2
+    // Vector c = data.colwise().maxCoeff();
+    // for (int j = 0; j < m; j++)
+    // {
+    //     double rj = 0.0;
+    //     const double cj = c[j];
+    //     const int offset = j * n;
+    //     const double* xdata = data.data() + offset;
+    //     const double* xend = xdata + n;
+    //     for (; xdata < xend; xdata++)
+    //     {
+    //         rj += std::exp((*xdata) - cj);
+    //     }
+    //     res[j] = rj;
+    // }
+    // res.array() = c.array() + res.array().log();
+
+    // // Implementation 3
+    // for (int j = 0; j < m; j++)
+    // {
+    //     const int offset = j * n;
+    //     const double* xdata = data.data() + offset;
+    //     res[j] = log_sum_exp(xdata, n);
+    // }
 }
 
-// Compute T = exp((alpha (+) beta - M) / reg)
-void Problem::compute_T(const Vector& gamma, Matrix& T) const
+// Compute T = exp((alpha (+) beta - M) / reg) and return sum(T)
+double Problem::compute_T(const Vector& gamma, Matrix& T) const
 {
     T.resize(m_n, m_m);
+    double Tsum = 0.0;
 
     // Extract betat and set beta=(betat, 0)
     Vector beta(m_m);
@@ -75,6 +162,7 @@ void Problem::compute_T(const Vector& gamma, Matrix& T) const
     using Eigen::internal::pstoreu;
     using Eigen::internal::pset1;
     using Eigen::internal::pexp;
+    using Eigen::internal::predux;
     using Packet = Eigen::internal::packet_traits<Scalar>::type;
     constexpr unsigned char PacketSize = Eigen::internal::packet_traits<Scalar>::size;
     constexpr unsigned char Peeling = 2;
@@ -104,6 +192,8 @@ void Problem::compute_T(const Vector& gamma, Matrix& T) const
         const double betaj = beta[j];
         const Packet vbetaj = pset1<Packet>(betaj);
 
+        Packet vTsum = pset1<Packet>(0);
+
         for (int i = 0; i < peeling_end; i += Increment)
         {
             Packet valpha1 = ploadu<Packet>(alpha_data);
@@ -113,6 +203,8 @@ void Problem::compute_T(const Vector& gamma, Matrix& T) const
 
             Packet vT1 = pexp((valpha1 + vbetaj - vM1) / vreg);
             Packet vT2 = pexp((valpha2 + vbetaj - vM2) / vreg);
+
+            vTsum += vT1 + vT2;
 
             pstoreu(T_data, vT1);
             pstoreu(T_data + PacketSize, vT2);
@@ -131,12 +223,17 @@ void Problem::compute_T(const Vector& gamma, Matrix& T) const
             Packet vM = ploadu<Packet>(M_data);
             Packet vT = pexp((valpha + vbetaj - vM) / vreg);
 
+            vTsum += vT;
+
             pstoreu(T_data, vT);
         }
+        Tsum += predux(vTsum);
         // Remaining elements
         for (int i = aligned_end; i < m_n; i++)
         {
-            T_head[i] = std::exp((alpha_head[i] + betaj - M_head[i]) / m_reg);
+            double Ti = std::exp((alpha_head[i] + betaj - M_head[i]) / m_reg);
+            Tsum += Ti;
+            T_head[i] = Ti;
         }
     }
 #else
@@ -150,8 +247,120 @@ void Problem::compute_T(const Vector& gamma, Matrix& T) const
         double* T_end = T_data + m_n;
         for (; T_data < T_end; T_data++, M_data++, alpha_data++)
         {
-            *T_data = std::exp((*alpha_data + betaj - *M_data) / m_reg);
+            double Ti = std::exp((*alpha_data + betaj - *M_data) / m_reg);
+            Tsum += Ti;
+            *T_data = Ti;
         }
+    }
+#endif
+
+    return Tsum;
+}
+
+// Save row sums to Tsums[0:n], and
+// save column sums (excluding the last column) to Tsums[n:(n + m - 1)]
+void Problem::compute_sums(const Matrix& T, Vector& Tsums) const
+{
+    Tsums.resize(m_n + m_m - 1);
+    Tsums.head(m_n).setZero();
+
+    // Pointers to output row sums and column sums
+    double* rs = Tsums.data();
+    double* cs = rs + m_n;
+
+#ifdef __AVX2__
+    // Packet type
+    using Scalar = double;
+    using Eigen::internal::ploadu;
+    using Eigen::internal::pstoreu;
+    using Eigen::internal::pset1;
+    using Eigen::internal::predux;
+    using Packet = Eigen::internal::packet_traits<Scalar>::type;
+    constexpr unsigned char PacketSize = Eigen::internal::packet_traits<Scalar>::size;
+    constexpr unsigned char Peeling = 2;
+    constexpr unsigned char Increment = Peeling * PacketSize;
+
+    // Compute for loop end points
+    // n % (2^k) == n & (2^k-1), see https://stackoverflow.com/q/3072665
+    // const int peeling_end = m_n - m_n % Increment;
+    const int aligned_end = m_n - (m_n & (PacketSize - 1));
+    const int peeling_end = m_n - (m_n & (Increment - 1));
+
+    for (int j = 0; j < m_m; j++)
+    {
+        const int offset = j * m_n;
+        const double* T_head = T.data() + offset;
+        const double* T_data = T_head;
+        double* rs_data = rs;
+
+        // Column sum
+        Packet vTcolsumj = pset1<Packet>(0);
+        double Tcolsumj = 0.0;
+
+        for (int i = 0; i < peeling_end; i += Increment)
+        {
+            Packet vT1 = ploadu<Packet>(T_data);
+            Packet vT2 = ploadu<Packet>(T_data + PacketSize);
+            Packet vrs1 = ploadu<Packet>(rs_data);
+            Packet vrs2 = ploadu<Packet>(rs_data + PacketSize);
+
+            // For column sums
+            vTcolsumj += vT1 + vT2;
+
+            // For row sums
+            pstoreu(rs_data, vrs1 + vT1);
+            pstoreu(rs_data + PacketSize, vrs2 + vT2);
+
+            T_data += Increment;
+            rs_data += Increment;
+        }
+        if (aligned_end != peeling_end)
+        {
+            T_data = T_head + peeling_end;
+            rs_data = rs + peeling_end;
+
+            Packet vT = ploadu<Packet>(T_data);
+            Packet vrs = ploadu<Packet>(rs_data);
+
+            // For column sums
+            vTcolsumj += vT;
+
+            // For row sums
+            pstoreu(rs_data, vrs + vT);
+        }
+        Tcolsumj = predux(vTcolsumj);
+        // Remaining elements
+        for (int i = aligned_end; i < m_n; i++)
+        {
+            double Ti = T_head[i];
+            Tcolsumj += Ti;
+            rs[i] += Ti;
+        }
+
+        // Save column sum
+        if (j < m_m - 1)
+            cs[j] = Tcolsumj;
+
+    }
+#else
+    for (int j = 0; j < m_m; j++)
+    {
+        double Tcolsumj = 0.0;
+
+        const int offset = j * m_n;
+        const double* T_data = T.data() + offset;
+        const double* T_end = T_data + m_n;
+        double* rs_data = rs;
+        for (; T_data < T_end; T_data++, rs_data++)
+        {
+            double Ti = *T_data;
+            Tcolsumj += Ti;
+            *rs_data += Ti;
+        }
+
+        // Save column sum
+        if (j < m_m - 1)
+            cs[j] = Tcolsumj;
     }
 #endif
 }
@@ -192,10 +401,9 @@ double Problem::dual_obj(const Vector& gamma) const
 double Problem::dual_obj(const Vector& gamma, Matrix& T) const
 {
     // Compute T = exp((alpha (+) beta - M) / reg)
-    compute_T(gamma, T);
+    double Tsum = compute_T(gamma, T);
 
     // Compute objective function value
-    double Tsum = T.sum();
     double obj = m_reg * Tsum - gamma.head(m_n).dot(m_a) -
         gamma.tail(m_m - 1).dot(m_b.head(m_m - 1));
 
@@ -205,15 +413,19 @@ double Problem::dual_obj(const Vector& gamma, Matrix& T) const
 // Compute the gradient
 void Problem::dual_grad(const Vector& gamma, Vector& grad) const
 {
+    grad.resize(m_n + m_m - 1);
+
     // Compute T = exp((alpha (+) beta - M) / reg)
     Matrix T(m_n, m_m);
     compute_T(gamma, T);
+    // Compute row sums and column sums of T
+    compute_sums(T, grad);
 
-    grad.resize(m_n + m_m - 1);
+    // Now grad stores T * 1m and T' * 1n (excluding the last column)
     // g(alpha) = T * 1m - a
-    grad.head(m_n).noalias() = T.rowwise().sum() - m_a;
+    grad.head(m_n).noalias() -= m_a;
     // g(beta) = T' * 1n - b
-    grad.tail(m_m - 1).noalias() = T.leftCols(m_m - 1).colwise().sum().transpose() - m_b.head(m_m - 1);
+    grad.tail(m_m - 1).noalias() -= m_b.head(m_m - 1);
 }
 
 // Compute the objective function and gradient
@@ -227,17 +439,20 @@ double Problem::dual_obj_grad(const Vector& gamma, Vector& grad) const
 // Compute the objective function, gradient, and T
 double Problem::dual_obj_grad(const Vector& gamma, Vector& grad, Matrix& T, bool computeT) const
 {
+    grad.resize(m_n + m_m - 1);
+
     // Compute T = exp((alpha (+) beta - M) / reg)
     if (computeT)
         compute_T(gamma, T);
+    // Compute row sums and column sums of T
+    compute_sums(T, grad);
 
-    grad.resize(m_n + m_m - 1);
-    // g(alpha) = T * 1m - a
-    grad.head(m_n).noalias() = T.rowwise().sum();
+    // Now grad stores T * 1m and T' * 1n (excluding the last column)
     double Tsum = grad.head(m_n).sum();
-    grad.head(m_n).array() -= m_a.array();
+    // g(alpha) = T * 1m - a
+    grad.head(m_n).noalias() -= m_a;
     // g(beta) = T' * 1n - b
-    grad.tail(m_m - 1).noalias() = T.leftCols(m_m - 1).colwise().sum().transpose() - m_b.head(m_m - 1);
+    grad.tail(m_m - 1).noalias() -= m_b.head(m_m - 1);
 
     // Compute objective function value
     double obj = m_reg * Tsum - gamma.head(m_n).dot(m_a) -
@@ -258,9 +473,11 @@ void Problem::dual_obj_grad_densehess(
     hess.resize(m_n + m_m - 1, m_n + m_m - 1);
     hess.setZero();
 
-    // r = T * 1m, c = T' * 1n
-    hess.diagonal().head(m_n).noalias() = T.rowwise().sum();
-    hess.diagonal().tail(m_m - 1).noalias() = T.leftCols(m_m - 1).colwise().sum().transpose();
+    // Row sums and column sums of T can be obtained from grad,
+    // which saves some computation
+    // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    hess.diagonal().head(m_n).noalias() = grad.head(m_n) + m_a;
+    hess.diagonal().tail(m_m - 1).noalias() = grad.tail(m_m - 1) + m_b.head(m_m - 1);
 
     // Off-diagonal elements
     hess.topRightCorner(m_n, m_m - 1).noalias() = T.leftCols(m_m - 1);
@@ -327,7 +544,25 @@ void Problem::optimal_beta(const RefConstVec& alpha, RefVec beta) const
 {
     beta.resize(m_m);
     Matrix D(m_n, m_m);
-    D.array() = (alpha.replicate(1, m_m) - m_M).array() / m_reg;
+
+    // Impelementation 1
+    // D.array() = (alpha.replicate(1, m_m) - m_M).array() / m_reg;
+
+    // Implementation 2
+    const double* alpha_head = alpha.data();
+    const double* alpha_end = alpha_head + m_n;
+    for (int j = 0; j < m_m; j++)
+    {
+        const int offset = j * m_n;
+        const double* adata = alpha_head;
+        const double* Mdata = m_M.data() + offset;
+        double* Ddata = D.data() + offset;
+        for (; adata < alpha_end; adata++, Mdata++, Ddata++)
+        {
+            *Ddata = (*adata - *Mdata) / m_reg;
+        }
+    }
+
     log_sum_exp_colwise(D, beta);
     beta.noalias() = m_reg * (m_logb - beta);
 }
@@ -337,7 +572,24 @@ void Problem::optimal_alpha(const RefConstVec& beta, RefVec alpha) const
 {
     alpha.resize(m_n);
     Matrix D(m_n, m_m);
+
+    // Impelementation 1
     D.array() = (beta.transpose().replicate(m_n, 1) - m_M).array() / m_reg;
+
+    // // Implementation 2
+    // for (int j = 0; j < m_m; j++)
+    // {
+    //     const double betaj = beta[j];
+    //     const int offset = j * m_n;
+    //     const double* Mdata = m_M.data() + offset;
+    //     const double* Mend = Mdata + m_n;
+    //     double* Ddata = D.data() + offset;
+    //     for (; Mdata < Mend; Mdata++, Ddata++)
+    //     {
+    //         *Ddata = (betaj - *Mdata) / m_reg;
+    //     }
+    // }
+
     log_sum_exp_rowwise(D, alpha);
     alpha.noalias() = m_reg * (m_loga - alpha);
 }

@@ -356,7 +356,35 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
 #endif
 
     // Generate sparse matrix
-    SpMat sp = (T - Delta).leftCols(m - 1).sparseView();
+    // SpMat sp = (T - Delta).leftCols(m - 1).sparseView();
+
+    std::vector<double> value;
+    std::vector<int> inner_ind;
+    std::vector<int> outer_ind(m);
+    outer_ind[0] = 0;
+    value.reserve(int(1.1 * density_hint * n * m));
+    inner_ind.reserve(int(1.1 * density_hint * n * m));
+    for (Index j = 0; j < m - 1; j++)
+    {
+        Index offset = n * j;
+        const Scalar* Tdata = T.data() + offset;
+        const Scalar* Dhead = Delta.data() + offset;
+        const Scalar* Dend = Dhead + n;
+        const Scalar* Ddata = Dhead;
+        Index nnz = 0;
+        for (; Ddata < Dend; Ddata++, Tdata++)
+        {
+            if (*Ddata == Scalar(0))
+            {
+                value.emplace_back(*Tdata);
+                inner_ind.emplace_back(std::distance(Dhead, Ddata));
+                nnz++;
+            }
+        }
+        outer_ind[j + 1] = outer_ind[j] + nnz;
+    }
+    Eigen::Map<SpMat> sp(
+        n, m - 1, value.size(), outer_ind.data(), inner_ind.data(), value.data());
 
 #ifdef TIMING
     TimePoint clock_t6 = Clock::now();

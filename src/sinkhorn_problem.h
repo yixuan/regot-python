@@ -25,8 +25,12 @@ private:
     Vector       m_loga;
     Vector       m_logb;
 
-    // Compute T = exp((alpha (+) beta - M) / reg)
-    void compute_T(const Vector& gamma, Matrix& T) const;
+    // Compute T = exp((alpha (+) beta - M) / reg) and return sum(T)
+    double compute_T(const Vector& gamma, Matrix& T) const;
+
+    // Save row sums to Tsums[0:n], and
+    // save column sums (excluding the last column) to Tsums[n:(n + m - 1)]
+    void compute_sums(const Matrix& T, Vector& Tsums) const;
 
 public:
     Problem(const RefConstMat& M, const RefConstVec& a, const RefConstVec& b, double reg):
