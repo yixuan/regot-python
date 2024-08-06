@@ -98,9 +98,7 @@ void sinkhorn_ssns_internal(
     density.push_back(H.density());
 
     int i;
-    // std::vector<double> alphas{1.0, 0.5, 0.25, 0.125, 0.0625, 0.01};
     std::vector<double> alphas{1.0, 0.5, 0.25, 0.1};
-    // std::vector<double> alphas{1.0, 0.5, 0.1};
     // std::vector<double> alphas_small{0.05, 0.01, 0.001, 1e-4};
     // bool use_alpha_small = true;
     for (i = 0; i < max_iter; i++)
@@ -122,7 +120,6 @@ void sinkhorn_ssns_internal(
 
         // Compute search direction
         double shift = mu * std::pow(gnorm, pow_lam);
-        // double shift = mu * std::pow(dgap, delta);
         // cout << ", shift = " << shift << std::endl;
         if (rho <= 0.0)
         {
@@ -172,7 +169,7 @@ void sinkhorn_ssns_internal(
         const double numer = f - newf;
         const double denom = -g.dot(step) - 0.5 * step.dot(Hstep);
         rho = numer / denom;
-        // std::cout << "alpha = " << alpha <<
+        // cout << "alpha = " << alpha <<
         //     ", numer = " << numer << ", denom = " << denom <<
         //     ", step = " << step.norm() << std::endl;
 

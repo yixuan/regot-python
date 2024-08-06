@@ -28,7 +28,8 @@ using TimePoint = std::chrono::time_point<Clock, Duration>;
 using Scalar = double;
 using Index = int;
 
-// 1. First do nth_element() partition
+// 1. First do nth_element() partition such that x is reordered and
+//    x_0, ..., x_{k-1} <= any element in [x_k, ..., x_{n-1}]
 // 2. If x_0 + ... + x_{k-1} <= target, return k
 // 3. Otherwise, partially sort x such that
 //        x_0 <= ... <= x_{k-1}
@@ -45,7 +46,7 @@ inline Index select_and_find(
     std::nth_element(x, x + k, x + n);
 #endif
     // Step 2
-    block_sum = std::accumulate(x, x + n, Scalar(0));
+    block_sum = std::accumulate(x, x + k, Scalar(0));
     if (block_sum <= target)
         return k;
     // Step 3
@@ -65,7 +66,8 @@ inline Index select_and_find(
     return k - 1;
 }
 
-// 1. First do nth_element() partition
+// 1. First do nth_element() partition such that x is reordered and
+//    x_0, ..., x_{k-1} <= any element in [x_k, ..., x_{n-1}]
 // 2. If x_k + ... + x_{n-1} < target, return k-1
 // 3. Otherwise, partially sort x such that
 //        x_k <= ... <= x_{n-1}
@@ -299,7 +301,7 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
         Scalar* data = Delta.data() + offset;
         Index L = n;
         // Search from the smallest values
-        if (density_hint > 0.1)
+        if (density_hint > 0.2)
         {
             L = find_small(data, n, delta);
         } else {
