@@ -2,10 +2,11 @@
 
 import os
 from pathlib import Path
-import zipfile
-import requests
 from glob import glob
+import zipfile
 from pybind11.setup_helpers import Pybind11Extension, build_ext
+import requests
+import cpufeature
 from setuptools import setup
 
 __version__ = "0.0.1"
@@ -56,15 +57,23 @@ class get_eigen_include(object):
 
         return target_dir.name
 
+# Test CPU feature
+# Better performance if AVX2 is supported and OpenMP is enabled
+extra_compiler_args = []
+if cpufeature.CPUFeature["num_virtual_cores"] > 1:
+    extra_compiler_args += ["-fopenmp"]
+if cpufeature.CPUFeature["AVX2"]:
+    extra_compiler_args += ["-mavx2"]
+
 ext_modules = [
     Pybind11Extension("regot._internal",
         sorted(glob("src/*.cpp")),
         include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
-        extra_compile_args = ["-fopenmp"],
-        extra_link_args = ["-fopenmp"]
-        ),
+        extra_compile_args = extra_compiler_args,
+        extra_link_args = extra_compiler_args
+    )
 ]
 
 setup(
@@ -72,7 +81,7 @@ setup(
     version=__version__,
     author="Yixuan Qiu",
     author_email="yixuan.qiu@cos.name",
-    url="https://github.com/yixuan/regot",
+    url="https://github.com/yixuan/regot-python",
     description="Regularized Optimal Transport",
     long_description="",
     packages=["regot"],
@@ -84,4 +93,3 @@ setup(
     zip_safe=False,
     python_requires=">=3.7",
 )
-
