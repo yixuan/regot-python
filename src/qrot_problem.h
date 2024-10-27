@@ -83,10 +83,6 @@ public:
         const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
         double curobj, double& objval, bool verbose = false, std::ostream& cout = std::cout
     ) const;
-    double line_selection3(
-        const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
-        const Hessian& hess, const Vector& grad, double curobj, double& objval, bool verbose = false, std::ostream& cout = std::cout
-    ) const;
 
     // Optimal beta given alpha
     void optimal_beta(const RefConstVec& alpha, RefVec beta) const;

@@ -20,7 +20,7 @@ void sinkhorn_apdagd_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -71,9 +71,9 @@ void sinkhorn_apdagd_internal(
     TimePoint clock_t2 = Clock::now();
 
     // Collect progress statistics
-    double prim_val = prob.primal_val(gamma);
+    // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
-    prim_vals.push_back(prim_val);
+    // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
     run_times.push_back((clock_t2 - clock_t1).count());
 
@@ -85,6 +85,10 @@ void sinkhorn_apdagd_internal(
         clock_t1 = Clock::now();
 
         // Line search
+        if (verbose >= 2)
+        {
+            cout << "\n[line search]=================================================" << std::endl;
+        }
         L *= 0.5;
         double ptau = 0.0, phi_new = 0.0;
         for (int j = 0; j < max_inner; j++)
@@ -116,12 +120,13 @@ void sinkhorn_apdagd_internal(
             // Line search test
             const double rhs = phit + grad.dot(dual_new - dualt) -
                 0.5 * L * (dual_new - dualt).squaredNorm();
-            if (verbose)
+            if (verbose >= 2)
             {
-                cout << "i = " << i << ", j = " << j << ", palpha = " << palpha <<
-                    ", pbeta = " << pbeta_new << ", phit = " << phit <<
-                    ", phi_new = " << phi_new <<
+                cout << "║ j = " << j << ", palpha = " << palpha <<
+                    ", pbeta = " << pbeta_new << std::endl;
+                cout << "║ phit = " << phit << ", phi_new = " << phi_new <<
                     ", rhs = " << rhs << std::endl;
+                cout << "║-------------------------------------------------------------" << std::endl;
             }
             if (phi_new >= rhs || j >= max_inner - 1)
             {
@@ -154,18 +159,18 @@ void sinkhorn_apdagd_internal(
         clock_t2 = Clock::now();
 
         // Collect progress statistics
-        prim_val = prob.primal_val(gamma);
+        // prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
-        prim_vals.push_back(prim_val);
+        // prim_vals.push_back(prim_val);
         mar_errs.push_back(mar_err);
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
 
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", primal_obj = " << primal_obj <<
+            cout << "iter = " << i << ", primal_obj = " << primal_obj <<
                 ", phi_new = " << phi_new <<
-                ", mar_err = " << mar_err << std::endl << std::endl;
+                ", mar_err = " << mar_err << std::endl;
         }
 
         // Convergence test
@@ -177,7 +182,7 @@ void sinkhorn_apdagd_internal(
     result.niter = i;
     result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
-    result.prim_vals.swap(prim_vals);
+    // result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

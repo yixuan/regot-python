@@ -34,7 +34,7 @@ void qrot_apdagd_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -42,7 +42,7 @@ void qrot_assn_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -50,7 +50,7 @@ void qrot_bcd_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -58,7 +58,7 @@ void qrot_gd_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -66,15 +66,15 @@ void qrot_grssn_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000,
-    bool verbose = false, std::ostream& cout = std::cout
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
+    std::ostream& cout = std::cout
 );
 
 void qrot_lbfgs_dual_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -82,7 +82,7 @@ void qrot_lbfgs_semi_dual_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -90,7 +90,7 @@ void qrot_pdaam_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -98,7 +98,7 @@ void qrot_s5n_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 

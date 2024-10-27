@@ -17,7 +17,7 @@ struct SinkhornSolverOpts
     Eigen::VectorXd x0;
     // Method for solving linear systems
     int method;
-    // Parameter for S5N
+    // Parameter for SSNS
     double mu0;
 
     // Setting default values
@@ -30,7 +30,7 @@ void sinkhorn_bcd_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -38,7 +38,7 @@ void sinkhorn_apdagd_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -46,7 +46,7 @@ void sinkhorn_lbfgs_dual_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -54,7 +54,7 @@ void sinkhorn_newton_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 
@@ -62,7 +62,7 @@ void sinkhorn_ssns_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
     std::ostream& cout = std::cout
 );
 

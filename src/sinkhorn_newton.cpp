@@ -23,7 +23,7 @@ void sinkhorn_newton_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -68,19 +68,19 @@ void sinkhorn_newton_internal(
     TimePoint clock_t2 = Clock::now();
 
     // Collect progress statistics
-    double prim_val = prob.primal_val(gamma);
+    // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
-    prim_vals.push_back(prim_val);
+    // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
     run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
     for (i = 0; i < max_iter; i++)
     {
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << std::endl;
+            cout << "iter = " << i << ", objval = " << f <<
+                ", ||grad|| = " << gnorm << std::endl;
         }
 
         // Start timing
@@ -115,9 +115,9 @@ void sinkhorn_newton_internal(
         clock_t2 = Clock::now();
 
         // Collect progress statistics
-        prim_val = prob.primal_val(gamma);
+        // prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
-        prim_vals.push_back(prim_val);
+        // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
@@ -128,7 +128,7 @@ void sinkhorn_newton_internal(
     result.get_plan(gamma, prob);
     result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
-    result.prim_vals.swap(prim_vals);
+    // result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

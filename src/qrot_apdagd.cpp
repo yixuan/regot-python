@@ -20,7 +20,7 @@ void qrot_apdagd_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -82,6 +82,10 @@ void qrot_apdagd_internal(
         clock_t1 = Clock::now();
 
         // Line search
+        if (verbose >= 2)
+        {
+            cout << "\n[line search]=================================================" << std::endl;
+        }
         L *= 0.5;
         double ptau = 0.0, phi_new = 0.0;
         for (int j = 0; j < max_inner; j++)
@@ -113,12 +117,13 @@ void qrot_apdagd_internal(
             // Line search test
             const double rhs = phit + grad.dot(dual_new - dualt) / reg -
                 0.5 * L * (dual_new - dualt).squaredNorm();
-            if (verbose)
+            if (verbose >= 2)
             {
-                cout << "i = " << i << ", j = " << j << ", palpha = " << palpha <<
-                    ", pbeta = " << pbeta_new << ", phit = " << phit <<
-                    ", phi_new = " << phi_new <<
+                cout << "║ j = " << j << ", palpha = " << palpha <<
+                    ", pbeta = " << pbeta_new << std::endl;
+                cout << "║ phit = " << phit << ", phi_new = " << phi_new <<
                     ", rhs = " << rhs << std::endl;
+                cout << "║-------------------------------------------------------------" << std::endl;
             }
             if (phi_new >= rhs || j >= max_inner - 1)
             {
@@ -157,11 +162,11 @@ void qrot_apdagd_internal(
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
 
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", primal_obj = " << primal_obj <<
+            cout << "iter = " << i << ", primal_obj = " << primal_obj <<
                 ", phi_new = " << phi_new <<
-                ", mar_err = " << mar_err << std::endl << std::endl;
+                ", mar_err = " << mar_err << std::endl;
         }
 
         // Convergence test

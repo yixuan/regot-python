@@ -22,7 +22,7 @@ void qrot_grssn_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -85,10 +85,10 @@ void qrot_grssn_internal(
     int i;
     for (i = 0; i < max_iter; i++)
     {
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << std::endl;
+            cout << "iter = " << i << ", objval = " << f <<
+                ", ||grad|| = " << gnorm << std::endl;
         }
 
         // Start timing

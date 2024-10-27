@@ -22,7 +22,7 @@ void qrot_s5n_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -93,14 +93,13 @@ void qrot_s5n_internal(
     bool use_alpha_small = true;
     for (i = 0; i < max_iter; i++)
     {
-        if (verbose)
-        {
-            cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << ", rho = " << rho <<
-                ", mu = " << mu << std::endl;
-        }
         double dgap = prim_val + f / reg;
-        // cout << "log_dual_gap = " << std::log10(dgap);
+        if (verbose >= 1)
+        {
+            cout << "iter = " << i << ", objval = " << f <<
+                ", ||grad|| = " << gnorm <<
+                ", ldgap = " << std::log10(dgap) << std::endl;
+        }
 
         // Start timing
         clock_t1 = Clock::now();
@@ -112,7 +111,12 @@ void qrot_s5n_internal(
         // Compute search direction
         // double shift = mu * std::pow(gnorm, delta);
         double shift = mu * std::pow(dgap, delta);
-        // cout << ", shift = " << shift << std::endl;
+        if (verbose >= 2)
+        {
+            cout << "[params]===================================================" << std::endl;
+            cout << "║ rho = " << rho << ", mu = " << mu << ", shift = " << shift << std::endl;
+            cout << "║----------------------------------------------------------" << std::endl;
+        }
         if (rho <= 0.0)
         {
             // No update in previous iteration
@@ -148,6 +152,13 @@ void qrot_s5n_internal(
         const double numer = f - newf;
         const double denom = -g.dot(step) - 0.5 * step.dot(Hstep);
         rho = numer / denom;
+        if (verbose >= 2)
+        {
+            cout << "[update]---------------------------------------------------" << std::endl;
+            cout << "║ alpha = " << alpha << ", ||step|| = " << step.norm() << std::endl;
+            cout << "║ rho_numer = " << numer << ", rho_denom = " << denom << std::endl;
+            cout << "===========================================================" << std::endl << std::endl;
+        }
 
         // Update iterate if rho > 0
         if (rho > 0.0)

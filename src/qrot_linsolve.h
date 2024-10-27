@@ -32,11 +32,11 @@ public:
     double tau;
     Vector cg_x0;
     double cg_tol;
-    bool verbose;
+    int verbose;
 
     // Setting default values
     QROTLinearSolver():
-        method(0), tau(0.0), cg_x0(0), cg_tol(1e-8), verbose(false)
+        method(0), tau(0.0), cg_x0(0), cg_tol(1e-8), verbose(0)
     {}
 
     void solve(

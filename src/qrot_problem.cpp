@@ -360,46 +360,6 @@ double Problem::line_selection2(
     return best_step;
 }
 
-// Select a step size
-double Problem::line_selection3(
-    const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
-    const Hessian& hess, const Vector& grad, double curobj, double& objval, bool verbose, std::ostream& cout
-) const
-{
-    const int nc = static_cast<int>(candid.size());
-    double best_step = 1.0;
-    objval = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < nc; i++)
-    {
-        const double alpha = candid[i];
-        Vector newgamma = gamma + alpha * direc;
-        const double objfn = dual_obj(newgamma);
-
-        Vector step(gamma.size()), Hstep(gamma.size());
-        step.noalias() = alpha * direc;
-        hess.apply_Hx(step, 0.0, m_tau, Hstep);
-        const double numer = curobj - objfn;
-        const double denom = -grad.dot(step) - 0.5 * step.dot(Hstep);
-        const double rho = numer / denom;
-        cout << "[ alpha = " << alpha <<
-            ", numer = " << numer << ", denom = " << denom <<
-            ", rho = " << rho << " ]" << std::endl;
-
-        if (objfn < objval)
-        {
-            best_step = alpha;
-            objval = objfn;
-        }
-        if (objval < curobj)
-        {
-            cout << "alpha = " << best_step << std::endl << std::endl;
-            return best_step;
-        }
-    }
-    cout << "alpha = " << best_step << " *" << std::endl << std::endl;
-    return best_step;
-}
-
 
 
 // Piecewise linear equation

@@ -157,7 +157,7 @@ void hess_cg(
     Eigen::VectorXd& res,
     const Hessian& hess, const Eigen::VectorXd& rhs, double shift, double tau,
     const Eigen::VectorXd& guess, double tol = 1e-8,
-    bool verbose = false, std::ostream& cout = std::cout
+    int verbose = 0, std::ostream& cout = std::cout
 );
 
 }  // namespace QROT

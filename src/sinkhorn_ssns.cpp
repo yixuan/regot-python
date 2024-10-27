@@ -8,9 +8,6 @@
 #include "sinkhorn_result.h"
 #include "sinkhorn_solvers.h"
 
-// Whether to print detailed timing information
-// #define TIMING 1
-
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
@@ -25,7 +22,7 @@ void sinkhorn_ssns_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -90,9 +87,9 @@ void sinkhorn_ssns_internal(
     TimePoint clock_t2 = Clock::now();
 
     // Collect progress statistics
-    double prim_val = prob.primal_val(gamma);
+    // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
-    prim_vals.push_back(prim_val);
+    // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
     run_times.push_back((clock_t2 - clock_t1).count());
     density.push_back(H.density());
@@ -103,12 +100,10 @@ void sinkhorn_ssns_internal(
     // bool use_alpha_small = true;
     for (i = 0; i < max_iter; i++)
     {
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << std::endl;
-            cout << "rho = " << rho << ", mu = " << mu <<
-                ", density = " << H.density() << std::endl;
+            cout << "iter = " << i << ", objval = " << f <<
+                ", ||grad|| = " << gnorm << std::endl;
         }
 
         // Start timing
@@ -120,7 +115,12 @@ void sinkhorn_ssns_internal(
 
         // Compute search direction
         double shift = mu * std::pow(gnorm, pow_lam);
-        // cout << ", shift = " << shift << std::endl;
+        if (verbose >= 2)
+        {
+            cout << "[params]===================================================" << std::endl;
+            cout << "║ rho = " << rho << ", mu = " << mu << ", shift = " << shift << std::endl;
+            cout << "║----------------------------------------------------------" << std::endl;
+        }
         if (rho <= 0.0)
         {
             // No update in previous iteration
@@ -130,13 +130,9 @@ void sinkhorn_ssns_internal(
             lin_sol.cg_x0.setZero();
         }
         bool same_sparsity = (rho <= 0.0);
-#ifdef TIMING
         TimePoint clock_s1 = Clock::now();
-#endif
         lin_sol.solve(direc, H, -g, shift, !same_sparsity, cout);
-#ifdef TIMING
         TimePoint clock_s2 = Clock::now();
-#endif
 
         // Step size selection
         double newf;
@@ -155,28 +151,27 @@ void sinkhorn_ssns_internal(
         // {
         //     use_alpha_small = true;
         // }
-
-#ifdef TIMING
         TimePoint clock_s3 = Clock::now();
-#endif
 
         // Estimate rho
         step.noalias() = alpha * direc;
         H.apply_Hsx(step, Hstep);
-#ifdef TIMING
         TimePoint clock_s4 = Clock::now();
-#endif
+
         const double numer = f - newf;
         const double denom = -g.dot(step) - 0.5 * step.dot(Hstep);
         rho = numer / denom;
-        // cout << "alpha = " << alpha <<
-        //     ", numer = " << numer << ", denom = " << denom <<
-        //     ", step = " << step.norm() << std::endl;
+        if (verbose >= 2)
+        {
+            cout << "[update]---------------------------------------------------" << std::endl;
+            cout << "║ alpha = " << alpha << ", ||step|| = " << step.norm() << std::endl;
+            cout << "║ rho_numer = " << numer << ", rho_denom = " << denom << std::endl;
+        }
 
         // Update iterate if rho > 0
         if (rho > 0.0)
             gamma.noalias() += step;
-        // std::cout << gamma.head(10).transpose() << std::endl;
+        // cout << gamma.head(10).transpose() << std::endl;
 
         // Update mu
         if (rho < rho_t1)
@@ -190,44 +185,42 @@ void sinkhorn_ssns_internal(
         // Get the new f, g, H if gamma is updated
         if (rho > 0.0)
         {
-#ifdef TIMING
             TimePoint clock_s5 = Clock::now();
-#endif
-
             // If rho > 0, then newf < f, which means that T has been computed
             // in line selection
             f = prob.dual_obj_grad(gamma, g, T, false);
-
-#ifdef TIMING
             TimePoint clock_s6 = Clock::now();
-#endif
 
             gnorm = g.norm();
             delta = nu0 * std::pow(gnorm, pow_delta);
+            double density_hint = H.density();
             prob.dual_sparsified_hess(T, g, delta, H.density(), H);
-
-#ifdef TIMING
             TimePoint clock_s7 = Clock::now();
-            cout << "[summary]=================================================" << std::endl;
-            cout << "solve = " << (clock_s2 - clock_s1).count() <<
-                ", grad = " << (clock_s6 - clock_s5).count() <<
-                ", hess = " << (clock_s7 - clock_s6).count() << std::endl;
-            cout << "line = " << (clock_s3 - clock_s2).count() <<
-                ", rho = " << (clock_s4 - clock_s3).count() << std::endl;
-            cout << "==========================================================" << std::endl;
-#endif
-        }
 
-        if (verbose)
-            cout << std::endl;
+            if (verbose >= 2)
+            {
+                cout << "║----------------------------------------------------------" << std::endl;
+                cout << "[sparse]---------------------------------------------------" << std::endl;
+                cout << "║ delta = " << delta << ", den = " << density_hint << ", den_new = " << H.density() << std::endl;
+                cout << "║----------------------------------------------------------" << std::endl;
+                cout << "[timing]---------------------------------------------------" << std::endl;
+                cout << "║ lin_solve = " << (clock_s2 - clock_s1).count() <<
+                    ", grad = " << (clock_s6 - clock_s5).count() <<
+                        ", hess = " << (clock_s7 - clock_s6).count() << std::endl;
+                cout << "║ line_search = " << (clock_s3 - clock_s2).count() <<
+                    ", rho = " << (clock_s4 - clock_s3).count() << std::endl;
+             }
+        }
+        if (verbose >= 2)
+            cout << "===========================================================" << std::endl << std::endl;
 
         // Record timing
         clock_t2 = Clock::now();
 
         // Collect progress statistics
-        prim_val = prob.primal_val(gamma);
+        // prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
-        prim_vals.push_back(prim_val);
+        // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
@@ -239,7 +232,7 @@ void sinkhorn_ssns_internal(
     result.get_plan(gamma, prob);
     result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
-    result.prim_vals.swap(prim_vals);
+    // result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
     result.density.swap(density);

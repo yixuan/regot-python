@@ -64,8 +64,8 @@ void QROTLinearSolver::solve(
     if (this->method == 0)
     {
         // Call CG solver
-        hess_cg(res, hess, rhs, shift,
-                this->tau, this->cg_x0, this->cg_tol, this->verbose, cout);
+        hess_cg(res, hess, rhs, shift, this->tau,
+                this->cg_x0, this->cg_tol, this->verbose, cout);
     } else {
         // Construct sparse matrix
         const int n = hess.size_n();

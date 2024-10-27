@@ -4,16 +4,22 @@
 #include <numeric>  // std::iota
 #include "sinkhorn_sparsify.h"
 
+// Whether to print detailed timing information
+// #define TIMING 1
+
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 using SpMat = Eigen::SparseMatrix<double>;
 using Tri = Eigen::Triplet<double>;
+
+#ifdef TIMING
 // https://stackoverflow.com/a/34781413
 using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double, std::milli>;
 using TimePoint = std::chrono::time_point<Clock, Duration>;
+#endif
 
 using Scalar = double;
 using Index = int;
@@ -223,7 +229,9 @@ inline Index find_large(
 // Sparsify a dense matrix, with the last column removed
 SpMat sparsify_mat(const Matrix& T, double delta, double density_hint)
 {
+#ifdef TIMING
     TimePoint clock_t1 = Clock::now();
+#endif
 
     // Dimensions
     const Index n = T.rows();
@@ -241,7 +249,9 @@ SpMat sparsify_mat(const Matrix& T, double delta, double density_hint)
         std::copy(T_ind.data(), T_ind.data() + n, T_ind.data() + offset);
     }
 
+#ifdef TIMING
     TimePoint clock_t2 = Clock::now();
+#endif
 
     // Vector to store the partition index L
     IndVec L_col(m - 1);
@@ -265,7 +275,9 @@ SpMat sparsify_mat(const Matrix& T, double delta, double density_hint)
         }
     }
 
+#ifdef TIMING
     TimePoint clock_t3 = Clock::now();
+#endif
 
     // Index vector of small values by row
     std::vector<std::vector<Index>> small_val_ind_row(n);
@@ -299,7 +311,9 @@ SpMat sparsify_mat(const Matrix& T, double delta, double density_hint)
     // No longer need T_ind, so free some memory
     T_ind.resize(1, 1);
 
+#ifdef TIMING
     TimePoint clock_t4 = Clock::now();
+#endif
 
     // Find large elements in the small value vector
     // Control the rowwise error
@@ -331,17 +345,21 @@ SpMat sparsify_mat(const Matrix& T, double delta, double density_hint)
         }
     }
 
+#ifdef TIMING
     TimePoint clock_t5 = Clock::now();
+#endif
 
     SpMat sp(n, m - 1);
     sp.setFromTriplets(tri_list.begin(), tri_list.end());
 
+#ifdef TIMING
     TimePoint clock_t6 = Clock::now();
     std::cout << "t2 - t1 = " << (clock_t2 - clock_t1).count() <<
         ", t3 - t2 = " << (clock_t3 - clock_t2).count() <<
         ", t4 - t3 = " << (clock_t4 - clock_t3).count() << std::endl;
     std::cout << "t5 - t4 = " << (clock_t5 - clock_t4).count() <<
         ", t6 - t5 = " << (clock_t6 - clock_t5).count() << std::endl;
+#endif
 
     // Matrix D = T.leftCols(m - 1) - sp;
     // std::cout << "delta = " << delta <<

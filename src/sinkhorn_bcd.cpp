@@ -6,9 +6,6 @@
 #include "sinkhorn_result.h"
 #include "sinkhorn_solvers.h"
 
-// Whether to print detailed timing information
-// #define TIMING 1
-
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
@@ -23,7 +20,7 @@ void sinkhorn_bcd_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -62,19 +59,19 @@ void sinkhorn_bcd_internal(
     TimePoint clock_t2 = Clock::now();
 
     // Collect progress statistics
-    double prim_val = prob.primal_val(gamma);
+    // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
-    prim_vals.push_back(prim_val);
+    // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
     run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
     for (i = 0; i < max_iter; i++)
     {
-        if (verbose)
+        if (verbose >= 1)
         {
-            cout << "i = " << i << ", obj = " << f <<
-                ", gnorm = " << gnorm << std::endl;
+            cout << "iter = " << i << ", objval = " << f <<
+                ", ||grad|| = " << gnorm << std::endl;
         }
 
         // Start timing
@@ -87,16 +84,12 @@ void sinkhorn_bcd_internal(
         // Optimal alpha given beta
         prob.optimal_alpha(beta, alpha);
 
-#ifdef TIMING
         TimePoint clock_s1 = Clock::now();
-#endif
 
         // Optimal beta given alpha
         prob.optimal_beta(alpha, beta);
 
-#ifdef TIMING
         TimePoint clock_s2 = Clock::now();
-#endif
 
         gamma.head(n).array() = alpha.array() + beta[m - 1];
         gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
@@ -107,18 +100,19 @@ void sinkhorn_bcd_internal(
         // Record timing
         clock_t2 = Clock::now();
 
-#ifdef TIMING
-        cout << "[summary]=================================================" << std::endl;
-        cout << "alpha = " << (clock_s1 - clock_t1).count() <<
-            ", beta = " << (clock_s2 - clock_s1).count() <<
-            ", grad = " << (clock_t2 - clock_s2).count() << std::endl;
-        cout << "==========================================================" << std::endl << std::endl;
-#endif
+        if (verbose >= 2)
+        {
+            cout << "[timing]=================================================" << std::endl;
+            cout << "║ alpha = " << (clock_s1 - clock_t1).count() <<
+                ", beta = " << (clock_s2 - clock_s1).count() <<
+                ", grad = " << (clock_t2 - clock_s2).count() << std::endl;
+            cout << "=========================================================" << std::endl << std::endl;
+        }
 
         // Collect progress statistics
-        prim_val = prob.primal_val(gamma);
+        // prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
-        prim_vals.push_back(prim_val);
+        // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
         double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
@@ -129,7 +123,7 @@ void sinkhorn_bcd_internal(
     result.get_plan(gamma, prob);
     result.dual.swap(gamma);
     result.obj_vals.swap(obj_vals);
-    result.prim_vals.swap(prim_vals);
+    // result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
 }

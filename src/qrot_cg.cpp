@@ -10,7 +10,7 @@ void hess_cg(
     Vector& res,
     const Hessian& hess, const Vector& rhs, double shift, double tau,
     const Vector& guess, double tol,
-    bool verbose, std::ostream& cout
+    int verbose, std::ostream& cout
 )
 {
     const int n = hess.size_n();
@@ -36,10 +36,11 @@ void hess_cg(
         res.tail(m).noalias() = cg.solveWithGuess(zy, guess);
     else
         res.tail(m).noalias() = cg.solve(zy);
-    if(verbose)
+    if (verbose >= 2)
     {
-        cout << "CG info = " << cg.info() <<
-            ", CG niter = " << cg.iterations() << std::endl;
+        cout << "[cg]=====================================================" << std::endl;
+        cout << "║ info = " << cg.info() << ", niter = " << cg.iterations() << std::endl;
+        cout << "=========================================================" << std::endl << std::endl;
     }
     // r1 = A^(-1) * (w - B * r2)
     // y <- B * r2, r1 <- w - y, y <- A^(-1) * r1, r1 <- y

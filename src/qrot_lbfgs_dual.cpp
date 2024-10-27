@@ -24,20 +24,24 @@ class QROTDual
 {
 private:
     const Problem& m_prob;
+    int            m_iter;
     double         m_last_obj_val;
     TimePoint      m_clock_t1;
     TimePoint      m_clock_t2;
     QROTResult&    m_result;
+    int            m_verbose;
+    std::ostream&  m_cout;
 
 public:
-    QROTDual(const Problem& prob, QROTResult& result):
-        m_prob(prob),
+    QROTDual(const Problem& prob, QROTResult& result, std::ostream& cout):
+        m_prob(prob), m_iter(0),
         m_last_obj_val(std::numeric_limits<double>::infinity()),
-        m_result(result)
+        m_result(result), m_verbose(0), m_cout(cout)
     {}
 
     void reset()
     {
+        m_iter = 0;
         m_result.obj_vals.clear();
         m_result.obj_vals.reserve(1000);
         m_result.prim_vals.clear();
@@ -49,6 +53,8 @@ public:
 
         m_clock_t1 = Clock::now();
     }
+
+    void set_verbose(int verbose) { m_verbose = verbose; }
 
     double operator()(const Vector& gamma, Vector& grad)
     {
@@ -68,6 +74,13 @@ public:
         double duration = (m_clock_t2 - m_clock_t1).count();
         m_result.run_times.push_back(current + duration);
 
+        if (m_verbose >= 1)
+        {
+            m_cout << "iter = " << m_iter << ", objval = " << m_last_obj_val <<
+                ", ||grad|| = " << solver.final_grad_norm() << std::endl;
+        }
+
+        m_iter++;
         m_clock_t1 = Clock::now();
     }
 };
@@ -76,7 +89,7 @@ void qrot_lbfgs_dual_internal(
     QROTResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const QROTSolverOpts& opts,
-    double tol, int max_iter, bool verbose, std::ostream& cout
+    double tol, int max_iter, int verbose, std::ostream& cout
 )
 {
     // Dimensions
@@ -88,7 +101,7 @@ void qrot_lbfgs_dual_internal(
 
     // Set up the problem
     Problem prob(M, a, b, reg, tau);
-    QROTDual dual(prob, result);
+    QROTDual dual(prob, result, cout);
 
     // L-BFGS parameters
     LBFGSParam<double> param;
@@ -110,6 +123,7 @@ void qrot_lbfgs_dual_internal(
         prob.optimal_beta(gamma.head(n), gamma.tail(m));
     }
     dual.reset();
+    dual.set_verbose(verbose);
     int niter = solver.minimize(dual, gamma, obj);
 
     // Save results
