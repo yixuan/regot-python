@@ -83,7 +83,7 @@ setup(
     author_email="yixuan.qiu@cos.name",
     url="https://github.com/yixuan/regot-python",
     description="Regularized Optimal Transport",
-    long_description="",
+    long_description="A collection of state-of-the-art solvers for regularized optimal transport, implemented in efficient C++ code.",
     packages=["regot"],
     ext_modules=ext_modules,
     # extras_require={"test": "pytest"},

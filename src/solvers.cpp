@@ -19,9 +19,10 @@ using QROT::QROTSolverOpts;
 using Sinkhorn::SinkhornResult;
 using Sinkhorn::SinkhornSolverOpts;
 
+/*
 QROTResult qrot_apdagd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -35,7 +36,7 @@ QROTResult qrot_apdagd(
 
 QROTResult qrot_assn(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -49,7 +50,7 @@ QROTResult qrot_assn(
 
 QROTResult qrot_bcd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -63,7 +64,7 @@ QROTResult qrot_bcd(
 
 QROTResult qrot_gd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -78,7 +79,7 @@ QROTResult qrot_gd(
 QROTResult qrot_grssn(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol = 1e-6, int max_iter = 1000, double shift = 0.001,
-    bool verbose = false
+    int verbose = 0
 )
 {
     QROTResult result;
@@ -93,7 +94,7 @@ QROTResult qrot_grssn(
 
 QROTResult qrot_lbfgs_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -107,7 +108,7 @@ QROTResult qrot_lbfgs_dual(
 
 QROTResult qrot_lbfgs_semi_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -121,7 +122,7 @@ QROTResult qrot_lbfgs_semi_dual(
 
 QROTResult qrot_pdaam(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -135,7 +136,7 @@ QROTResult qrot_pdaam(
 
 QROTResult qrot_s5n(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     QROTResult result;
@@ -146,12 +147,13 @@ QROTResult qrot_s5n(
 
     return result;
 }
+*/
 
 
 
 SinkhornResult sinkhorn_apdagd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     SinkhornResult result;
@@ -165,7 +167,7 @@ SinkhornResult sinkhorn_apdagd(
 
 SinkhornResult sinkhorn_bcd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     SinkhornResult result;
@@ -179,7 +181,7 @@ SinkhornResult sinkhorn_bcd(
 
 SinkhornResult sinkhorn_lbfgs_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     SinkhornResult result;
@@ -193,7 +195,7 @@ SinkhornResult sinkhorn_lbfgs_dual(
 
 SinkhornResult sinkhorn_newton(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     SinkhornResult result;
@@ -207,7 +209,7 @@ SinkhornResult sinkhorn_newton(
 
 SinkhornResult sinkhorn_ssns(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, bool verbose = false
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0
 )
 {
     SinkhornResult result;
@@ -223,7 +225,8 @@ SinkhornResult sinkhorn_ssns(
 
 
 PYBIND11_MODULE(_internal, m) {
-    // Solvers
+    // QROT solvers
+    /*
     m.def("qrot_apdagd", &qrot_apdagd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
@@ -252,24 +255,27 @@ PYBIND11_MODULE(_internal, m) {
     m.def("qrot_s5n", &qrot_s5n,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
-    
+    */
+
+    // Sinkhorn solvers
     m.def("sinkhorn_apdagd", &sinkhorn_apdagd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_bcd", &sinkhorn_bcd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_lbfgs_dual", &sinkhorn_lbfgs_dual,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_newton", &sinkhorn_newton,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_ssns", &sinkhorn_ssns,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
 
     // Returned object
+    /*
     py::class_<QROTResult>(m, "qrot_result")
         .def(py::init<>())
         .def_readwrite("niter", &QROTResult::niter)
@@ -279,6 +285,7 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("prim_vals", &QROTResult::prim_vals)
         .def_readwrite("mar_errs", &QROTResult::mar_errs)
         .def_readwrite("run_times", &QROTResult::run_times);
+    */
     
     py::class_<SinkhornResult>(m, "sinkhorn_result")
         .def(py::init<>())
@@ -286,7 +293,7 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("dual", &SinkhornResult::dual)
         .def_readwrite("plan", &SinkhornResult::plan)
         .def_readwrite("obj_vals", &SinkhornResult::obj_vals)
-        .def_readwrite("prim_vals", &SinkhornResult::prim_vals)
+        // .def_readwrite("prim_vals", &SinkhornResult::prim_vals)
         .def_readwrite("mar_errs", &SinkhornResult::mar_errs)
         .def_readwrite("run_times", &SinkhornResult::run_times)
         .def_readwrite("density", &SinkhornResult::density);
