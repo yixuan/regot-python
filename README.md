@@ -48,3 +48,62 @@ Currently **RegOT** contains the following solvers for EROT:
 The QROT solvers will be included in **RegOT** soon.
 
 ## 📗 Example
+
+The code below shows a minimal example computing EROT
+given $a$, $b$, $M$, and $\eta$.
+
+
+
+```py
+import numpy as np
+from scipy.stats import expon, norm
+import regot
+import matplotlib.pyplot as plt
+
+# OT between two discretized distributions
+# One is exponential, the other is mixture normal
+def example(n=100, m=80):
+    x1 = np.linspace(0.0, 5.0, num=n)
+    x2 = np.linspace(0.0, 5.0, num=m)
+    distr1 = expon(scale=1.0)
+    distr2 = norm(loc=1.0, scale=0.2)
+    distr3 = norm(loc=3.0, scale=0.5)
+    a = distr1.pdf(x1)
+    a = a / np.sum(a)
+    b = 0.2 * distr2.pdf(x2) + 0.8 * distr3.pdf(x2)
+    b = b / np.sum(b)
+    M = np.square(x1.reshape(n, 1) - x2.reshape(1, m))
+    return M, a, b
+
+# Source and target distribution vectors `a` and `b`
+# Cost matrix `M`
+# Regularization parameter `reg`
+np.random.seed(123)
+M, a, b = example(n=100, m=80)
+reg = 0.1
+
+# Algorithm: block coordinate descent (the Sinkhorn algorithm)
+res1 = regot.sinkhorn_bcd(
+    M, a, b, reg, tol=1e-6, max_iter=1000, verbose=1)
+
+# Algorithm: SSNS
+reg = 0.01
+res2 = regot.sinkhorn_ssns(
+    M, a, b, reg, tol=1e-6, max_iter=1000, verbose=0)
+```
+
+We can retrieve the computed transport plans and visualize them:
+
+```py
+def vis_plan(T, title=""):
+    fig = plt.figure(figsize=(8, 8))
+    plt.imshow(T, interpolation="nearest")
+    plt.title(title, fontsize=20)
+    plt.show()
+
+vis_plan(res1.plan, title="reg=0.1")
+vis_plan(res2.plan, title="reg=0.01")
+```
+
+![](figs/plan_reg0_1.png)
+![](figs/plan_reg0_01.png)
