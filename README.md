@@ -12,12 +12,12 @@ the entropic-regularized OT (EROT) and the quadratically regularized OT (QROT).
 
 EROT, also known as the Sinkhorn-type OT, considers the following optimization problem:
 
-$$
+```math
 \begin{align*}
 \min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle-\eta h(T),\\
 \text{subject to}\quad & T\mathbf{1}_{m}=a,T^{T}\mathbf{1}_{n}=b,T\ge0,
 \end{align*}
-$$
+```
 
 where $a\in\mathbb{R}^n$ and $b\in\mathbb{R}^m$ are two given
 probability vectors with $a_i>0$, $b_j>0$, $\sum_{i=1}^n a_i=\sum_{j=1}^m b_j=1$,
@@ -27,12 +27,12 @@ and $\eta>0$ is a regularization parameter.
 
 QROT, also known as the Euclidean-regularized OT, is concerned with the problem
 
-$$
+```math
 \begin{align*}
 \min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle+\gamma \Vert T \Vert_F^2,\\
 \text{subject to}\quad & T\mathbf{1}_{m}=a,T^{T}\mathbf{1}_{n}=b,T\ge0.
 \end{align*}
-$$
+```
 
 ## 🔧 Solvers
 
@@ -105,5 +105,4 @@ vis_plan(res1.plan, title="reg=0.1")
 vis_plan(res2.plan, title="reg=0.01")
 ```
 
-![](figs/plan_reg0_1.png)
-![](figs/plan_reg0_01.png)
+<img src="figs/plan_reg0_1.png" width="45%" /> <img src="figs/plan_reg0_01.png" width="45%" />
