@@ -22,3 +22,7 @@ Issues = "https://github.com/yixuan/regot-python/issues"
 [build-system]
 requires = ["requests ~= 2.31.0", "pybind11 ~= 2.13.0", "cpufeature ~= 0.2.1", "setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+# Only build on CPython
+build = "cp*"
