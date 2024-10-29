@@ -45,7 +45,16 @@ Currently **RegOT** contains the following solvers for EROT:
 - `sinkhorn_newton`: Newton's method applied to the dual problem of EROT.
 - `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, paper to appear soon).
 
-The QROT solvers will be included in **RegOT** soon.
+The following solvers are available for the QROT problem:
+
+- `qrot_bcd`: the BCD algorithm.
+- `qrot_gd`: the line search gradient descent algorithm applied to the dual problem of QROT.
+- `qrot_apdagd`: the APDAGD algorithm ([link to paper](https://arxiv.org/pdf/1802.04367)).
+- `qrot_pdaam`: the primal-dual accelerated alternating minimization (PDAAM) algorithm ([link to paper](https://arxiv.org/pdf/1906.03622)).
+- `qrot_lbfgs_dual`: the L-BFGS algorithm applied to the dual problem of QROT.
+- `qrot_lbfgs_semi_dual`: the L-BFGS algorithm applied to the semi-dual problem of QROT ([link to paper](https://arxiv.org/pdf/1710.06276)).
+- `qrot_assn`: the adaptive semi-smooth Newton (ASSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1603.07870)).
+- `qrot_grssn`: the globalized and regularized semi-smooth Newton (GRSSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1903.01112)).
 
 ## 💽 Installation
 
