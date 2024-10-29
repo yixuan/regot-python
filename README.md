@@ -58,9 +58,19 @@ The following solvers are available for the QROT problem:
 
 ## 💽 Installation
 
+### Using `pip`
+
+You can simply install **RegOT** using the `pip` command:
+
+```bash
+pip install regot
+```
+
+### Building from source
+
 A C++ compiler is needed to build **RegOT** from source. Enter the source directory and run
 
-```
+```bash
 pip install . -r requirements.txt
 ```
 
