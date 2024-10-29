@@ -47,6 +47,14 @@ Currently **RegOT** contains the following solvers for EROT:
 
 The QROT solvers will be included in **RegOT** soon.
 
+## 💽 Installation
+
+A C++ compiler is needed to build **RegOT** from source. Enter the source directory and run
+
+```
+pip install . -r requirements.txt
+```
+
 ## 📗 Example
 
 The code below shows a minimal example computing EROT
