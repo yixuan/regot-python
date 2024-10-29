@@ -19,14 +19,36 @@ using QROT::QROTSolverOpts;
 using Sinkhorn::SinkhornResult;
 using Sinkhorn::SinkhornSolverOpts;
 
-/*
+// Set solver_opts from Python-side keyword arguments
+inline void parse_qrot_opts(
+    QROTSolverOpts &solver_opts, const py::kwargs &kwargs
+)
+{
+    // Used in ASSN, GRSSN
+    // 0 - CG
+    // 1 - SimplicialLDLT
+    // 2 - SimplicialLLT
+    // 3 - SparseLU
+    if (kwargs.contains("method"))
+    {
+    	solver_opts.method = py::int_(kwargs["method"]);
+    }
+    // Used in GRSSN
+    if (kwargs.contains("shift"))
+    {
+        solver_opts.shift = py::float_(kwargs["shift"]);
+    }
+}
+
 QROTResult qrot_apdagd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_apdagd_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -36,11 +58,13 @@ QROTResult qrot_apdagd(
 
 QROTResult qrot_assn(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_assn_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -50,11 +74,13 @@ QROTResult qrot_assn(
 
 QROTResult qrot_bcd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_bcd_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -64,11 +90,13 @@ QROTResult qrot_bcd(
 
 QROTResult qrot_gd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_gd_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -78,13 +106,14 @@ QROTResult qrot_gd(
 
 QROTResult qrot_grssn(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, double shift = 0.001,
-    int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
-    solver_opts.shift = shift;
+    solver_opts.shift = 0.001;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_grssn_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -94,11 +123,13 @@ QROTResult qrot_grssn(
 
 QROTResult qrot_lbfgs_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_lbfgs_dual_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -108,11 +139,13 @@ QROTResult qrot_lbfgs_dual(
 
 QROTResult qrot_lbfgs_semi_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_lbfgs_semi_dual_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -122,11 +155,13 @@ QROTResult qrot_lbfgs_semi_dual(
 
 QROTResult qrot_pdaam(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_pdaam_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -134,13 +169,16 @@ QROTResult qrot_pdaam(
     return result;
 }
 
+/*
 QROTResult qrot_s5n(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     QROTResult result;
     QROTSolverOpts solver_opts;
+    parse_qrot_opts(solver_opts, kwargs);
+
     QROT::qrot_s5n_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -156,10 +194,11 @@ inline void parse_sinkhorn_opts(
     SinkhornSolverOpts &solver_opts, const py::kwargs &kwargs
 )
 {
-    // Method: 0 - CG
-    //         1 - SimplicialLDLT
-    //         2 - SimplicialLLT
-    //         3 - SparseLU
+    // Used in SSNS
+    // 0 - CG
+    // 1 - SimplicialLDLT
+    // 2 - SimplicialLLT
+    // 3 - SparseLU
     if (kwargs.contains("method"))
     {
     	solver_opts.method = py::int_(kwargs["method"]);
@@ -257,35 +296,34 @@ SinkhornResult sinkhorn_ssns(
 
 PYBIND11_MODULE(_internal, m) {
     // QROT solvers
-    /*
     m.def("qrot_apdagd", &qrot_apdagd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_assn", &qrot_assn,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_bcd", &qrot_bcd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_gd", &qrot_gd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_grssn", &qrot_grssn,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "shift"_a = 0.001,
-        "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_lbfgs_dual", &qrot_lbfgs_dual,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_lbfgs_semi_dual", &qrot_lbfgs_semi_dual,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("qrot_pdaam", &qrot_pdaam,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
+    /*
     m.def("qrot_s5n", &qrot_s5n,
         "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = false);
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     */
 
     // Sinkhorn solvers
@@ -306,7 +344,6 @@ PYBIND11_MODULE(_internal, m) {
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
 
     // Returned object
-    /*
     py::class_<QROTResult>(m, "qrot_result")
         .def(py::init<>())
         .def_readwrite("niter", &QROTResult::niter)
@@ -316,8 +353,7 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("prim_vals", &QROTResult::prim_vals)
         .def_readwrite("mar_errs", &QROTResult::mar_errs)
         .def_readwrite("run_times", &QROTResult::run_times);
-    */
-    
+
     py::class_<SinkhornResult>(m, "sinkhorn_result")
         .def(py::init<>())
         .def_readwrite("niter", &SinkhornResult::niter)
