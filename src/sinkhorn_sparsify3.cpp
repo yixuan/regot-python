@@ -207,6 +207,7 @@ inline void apply_thresh_mask(
     using Eigen::internal::ploadu;
     using Eigen::internal::pstoreu;
     using Eigen::internal::pset1;
+    using Eigen::internal::pcmp_le;
     using Eigen::internal::pselect;
     using Packet = Eigen::internal::packet_traits<Scalar>::type;
     constexpr unsigned char PacketSize = Eigen::internal::packet_traits<Scalar>::size;
@@ -231,8 +232,8 @@ inline void apply_thresh_mask(
     {
         Packet vsrc1 = ploadu<Packet>(wsrc);
         Packet vsrc2 = ploadu<Packet>(wsrc + PacketSize);
-        Packet vdest1 = pselect<Packet>(vsrc1 >= vthresh, vzero, vsrc1);
-        Packet vdest2 = pselect<Packet>(vsrc2 >= vthresh, vzero, vsrc2);
+        Packet vdest1 = pselect<Packet>(pcmp_le(vthresh, vsrc1), vzero, vsrc1);
+        Packet vdest2 = pselect<Packet>(pcmp_le(vthresh, vsrc2), vzero, vsrc2);
 
         pstoreu(wdest, vdest1);
         pstoreu(wdest + PacketSize, vdest2);
@@ -246,7 +247,7 @@ inline void apply_thresh_mask(
         wdest = dest + peeling_end;
 
         Packet vsrc = ploadu<Packet>(wsrc);
-        Packet vdest = pselect<Packet>(vsrc >= vthresh, vzero, vsrc);
+        Packet vdest = pselect<Packet>(pcmp_le(vthresh, vsrc), vzero, vsrc);
 
         pstoreu(wdest, vdest);
     }
