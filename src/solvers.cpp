@@ -151,13 +151,35 @@ QROTResult qrot_s5n(
 
 
 
+// Set solver_opts from Python-side keyword arguments
+inline void parse_sinkhorn_opts(
+    SinkhornSolverOpts &solver_opts, const py::kwargs &kwargs
+)
+{
+    // Method: 0 - CG
+    //         1 - SimplicialLDLT
+    //         2 - SimplicialLLT
+    //         3 - SparseLU
+    if (kwargs.contains("method"))
+    {
+    	solver_opts.method = py::int_(kwargs["method"]);
+    }
+    // Used in SSNS
+    if (kwargs.contains("mu0"))
+    {
+        solver_opts.mu0 = py::float_(kwargs["mu0"]);
+    }
+}
+
 SinkhornResult sinkhorn_apdagd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
     Sinkhorn::sinkhorn_apdagd_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -167,11 +189,13 @@ SinkhornResult sinkhorn_apdagd(
 
 SinkhornResult sinkhorn_bcd(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
     Sinkhorn::sinkhorn_bcd_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -181,11 +205,13 @@ SinkhornResult sinkhorn_bcd(
 
 SinkhornResult sinkhorn_lbfgs_dual(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
     Sinkhorn::sinkhorn_lbfgs_dual_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -195,11 +221,13 @@ SinkhornResult sinkhorn_lbfgs_dual(
 
 SinkhornResult sinkhorn_newton(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
     Sinkhorn::sinkhorn_newton_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
@@ -209,12 +237,15 @@ SinkhornResult sinkhorn_newton(
 
 SinkhornResult sinkhorn_ssns(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol = 1e-6, int max_iter = 1000, int verbose = 0
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    // Use LDLT as default
     solver_opts.method = 1;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
     Sinkhorn::sinkhorn_ssns_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
