@@ -23,6 +23,8 @@ inline double log_sum_exp(const double* data, const int n)
     using Scalar = double;
     using Eigen::internal::ploadu;
     using Eigen::internal::pset1;
+    using Eigen::internal::padd;
+    using Eigen::internal::psub;
     using Eigen::internal::pexp;
     using Eigen::internal::predux;
     using Packet = Eigen::internal::packet_traits<Scalar>::type;
@@ -48,10 +50,10 @@ inline double log_sum_exp(const double* data, const int n)
         Packet vx1 = ploadu<Packet>(xdata);
         Packet vx2 = ploadu<Packet>(xdata + PacketSize);
         // Compute result
-        Packet vres1 = pexp(vx1 - vc);
-        Packet vres2 = pexp(vx2 - vc);
+        Packet vres1 = pexp(psub(vx1, vc));
+        Packet vres2 = pexp(psub(vx2, vc));
         // Reduce
-        vres += vres1 + vres2;
+        vres = padd(vres, padd(vres1, vres2));
 
         xdata += Increment;
     }
@@ -60,7 +62,7 @@ inline double log_sum_exp(const double* data, const int n)
         xdata = data + peeling_end;
 
         Packet vx = ploadu<Packet>(xdata);
-        vres += pexp(vx - c);
+        vres = padd(vres, pexp(psub(vx, vc)));
     }
     // Reduce to scalar
     res = predux(vres);
@@ -167,6 +169,9 @@ double compute_column_helper(
     using Eigen::internal::ploadu;
     using Eigen::internal::pstoreu;
     using Eigen::internal::pset1;
+    using Eigen::internal::padd;
+    using Eigen::internal::psub;
+    using Eigen::internal::pdiv;
     using Eigen::internal::pexp;
     using Eigen::internal::predux;
     using Packet = Eigen::internal::packet_traits<Scalar>::type;
@@ -193,14 +198,14 @@ double compute_column_helper(
         Packet vT1, vT2;
         if (NoBeta)
         {
-            vT1 = pexp((valpha1 - vM1) / vreg);
-            vT2 = pexp((valpha2 - vM2) / vreg);
+            vT1 = pexp(pdiv(psub(valpha1, vM1), vreg));
+            vT2 = pexp(pdiv(psub(valpha2, vM2), vreg));
         } else {
-            vT1 = pexp((valpha1 + vbeta - vM1) / vreg);
-            vT2 = pexp((valpha2 + vbeta - vM2) / vreg);
+            vT1 = pexp(pdiv(psub(padd(valpha1, vbeta), vM1), vreg));
+            vT2 = pexp(pdiv(psub(padd(valpha2, vbeta), vM2), vreg));
         }
         // Reduce
-        vTsum += vT1 + vT2;
+        vTsum = padd(vTsum, padd(vT1, vT2));
 
         // Store T
         pstoreu(T_data, vT1);
@@ -222,11 +227,11 @@ double compute_column_helper(
         Packet vT;
         if (NoBeta)
         {
-            vT = pexp((valpha - vM) / vreg);
+            vT = pexp(pdiv(psub(valpha, vM), vreg));
         } else {
-            vT = pexp((valpha + vbeta - vM) / vreg);
+            vT = pexp(pdiv(psub(padd(valpha, vbeta), vM), vreg));
         }
-        vTsum += vT;
+        vTsum = padd(vTsum, vT);
 
         pstoreu(T_data, vT);
     }
@@ -335,6 +340,7 @@ void Problem::compute_sums(const Matrix& T, Vector& Tsums) const
     using Eigen::internal::ploadu;
     using Eigen::internal::pstoreu;
     using Eigen::internal::pset1;
+    using Eigen::internal::padd;
     using Eigen::internal::predux;
     using Packet = Eigen::internal::packet_traits<Scalar>::type;
     constexpr unsigned char PacketSize = Eigen::internal::packet_traits<Scalar>::size;
@@ -366,11 +372,11 @@ void Problem::compute_sums(const Matrix& T, Vector& Tsums) const
             Packet vrs2 = ploadu<Packet>(rs_data + PacketSize);
 
             // For column sums
-            vTcolsumj += vT1 + vT2;
+            vTcolsumj = padd(vTcolsumj, padd(vT1, vT2));
 
             // For row sums
-            pstoreu(rs_data, vrs1 + vT1);
-            pstoreu(rs_data + PacketSize, vrs2 + vT2);
+            pstoreu(rs_data, padd(vrs1, vT1));
+            pstoreu(rs_data + PacketSize, padd(vrs2, vT2));
 
             T_data += Increment;
             rs_data += Increment;
@@ -384,10 +390,10 @@ void Problem::compute_sums(const Matrix& T, Vector& Tsums) const
             Packet vrs = ploadu<Packet>(rs_data);
 
             // For column sums
-            vTcolsumj += vT;
+            vTcolsumj = padd(vTcolsumj, vT);
 
             // For row sums
-            pstoreu(rs_data, vrs + vT);
+            pstoreu(rs_data, padd(vrs, vT));
         }
         Tcolsumj = predux(vTcolsumj);
         // Remaining elements
@@ -656,3 +662,4 @@ void Problem::optimal_alpha(const RefConstVec& beta, RefVec alpha) const
 }
 
 }  // namespace Sinkhorn
+
