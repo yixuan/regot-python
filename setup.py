@@ -1,6 +1,7 @@
 # https://stackoverflow.com/a/47651621
 
 import os
+import sys
 from pathlib import Path
 from glob import glob
 import zipfile
@@ -59,9 +60,12 @@ class get_eigen_include(object):
 
 # Test CPU feature
 # Better performance if AVX2 is supported and OpenMP is enabled
+# It seems hard to configure OpenMP for MacOS on Github Action,
+# so for now we disable OpenMP for MacOS
 extra_compiler_args = []
 if cpufeature.CPUFeature["num_virtual_cores"] > 1:
-    extra_compiler_args += ["-fopenmp"]
+    if sys.platform == "linux":
+        extra_compiler_args += ["-fopenmp"]
 if cpufeature.CPUFeature["AVX2"]:
     extra_compiler_args += ["-mavx2"]
 
