@@ -64,10 +64,15 @@ class get_eigen_include(object):
 # so for now we disable OpenMP for MacOS
 extra_compiler_args = []
 if cpufeature.CPUFeature["num_virtual_cores"] > 1:
+    if sys.platform == "win32":
+        extra_compiler_args += ["/openmp"]
     if sys.platform == "linux":
         extra_compiler_args += ["-fopenmp"]
 if cpufeature.CPUFeature["AVX2"]:
-    extra_compiler_args += ["-mavx2"]
+    if sys.platform == "win32":
+        extra_compiler_args += ["/arch:AVX2"]
+    else:
+        extra_compiler_args += ["-mavx2"]
 
 ext_modules = [
     Pybind11Extension("regot._internal",
