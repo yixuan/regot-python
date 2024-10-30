@@ -1,6 +1,6 @@
 [project]
 name = "regot"
-version = "0.0.1"
+version = "0.0.2"
 description = "Regularized Optimal Transport"
 authors = [
   {name = "Yixuan Qiu", email = "yixuanq@gmail.com"}
