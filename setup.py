@@ -7,7 +7,7 @@ from glob import glob
 import zipfile
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 import requests
-import cpufeature
+from cpuinfo import get_cpu_info
 from setuptools import setup
 
 __version__ = "0.0.1"
@@ -63,23 +63,27 @@ class get_eigen_include(object):
 # It seems hard to configure OpenMP for MacOS on Github Action,
 # so for now we disable OpenMP for MacOS
 extra_compiler_args = []
-if cpufeature.CPUFeature["num_virtual_cores"] > 1:
-    if sys.platform == "win32":
-        extra_compiler_args += ["/openmp"]
-    if sys.platform == "linux":
-        extra_compiler_args += ["-fopenmp"]
-if cpufeature.CPUFeature["AVX2"]:
-    if sys.platform == "win32":
-        extra_compiler_args += ["/arch:AVX2"]
-    else:
-        extra_compiler_args += ["-mavx2"]
+try:
+    info = get_cpu_info()
+    if info["count"] > 1:
+        if sys.platform == "win32":
+            extra_compiler_args += ["/openmp"]
+        if sys.platform == "linux":
+            extra_compiler_args += ["-fopenmp"]
+    if "avx2" in info["flags"]:
+        if sys.platform == "win32":
+            extra_compiler_args += ["/arch:AVX2"]
+        else:
+            extra_compiler_args += ["-mavx2"]
+except:
+    pass
 
 ext_modules = [
     Pybind11Extension("regot._internal",
         sorted(glob("src/*.cpp")),
         include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
         # Example: passing in the version to the compiled code
-        define_macros = [('VERSION_INFO', __version__)],
+        define_macros = [("VERSION_INFO", __version__)],
         extra_compile_args = extra_compiler_args,
         extra_link_args = extra_compiler_args
     )

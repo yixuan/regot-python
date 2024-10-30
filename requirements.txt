@@ -1,4 +1,3 @@
 requests
 pybind11
-cpufeature
-
+py-cpuinfo
