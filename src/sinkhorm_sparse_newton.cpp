@@ -31,14 +31,15 @@ void sinkhorn_sparse_newton_internal(
     const int m = M.cols();
 
     // Algorithmic parameters
-    constexpr double theta = 0.5, kappa = 0.5;
-    constexpr int nlinesearch = 20;
     double density = opts.density;
     double shift = opts.shift;
+    int method = opts.method;
+    double cg_tol = 1e-8;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
     Vector gamma(n + m - 1), newgamma(n + m - 1), direc(n + m - 1);
+    Vector cg_x0(m - 1);
 
     // Progress statistics
     std::vector<double> obj_vals;
@@ -58,12 +59,20 @@ void sinkhorn_sparse_newton_internal(
         gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
     }
 
+    // Linear solver
+    SinkhornLinearSolver lin_sol;
+    lin_sol.method = method;
+    lin_sol.cg_tol = cg_tol;
+    lin_sol.verbose = verbose;
+
     // Start timing
     TimePoint clock_t1 = Clock::now();
     // Initial objective function value, gradient, and Hessian
     double f;
     Vector g;
     Matrix H;
+    Matrix T(n, m);
+    f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
     prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
     double gnorm = g.norm();
     // Record timing
