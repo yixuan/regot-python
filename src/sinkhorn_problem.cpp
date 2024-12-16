@@ -570,37 +570,6 @@ Matrix Problem::sparsify_by_density(
 
     // Step 4: Set elements below the threshold to 0
     return (T.array() > threshold).select(T, 0.0);
-
-    // Matrix spT = T;
-
-    // // Dimensions
-    // int n = T.rows();
-    // int m = T.cols();
-
-    // // Number of zeros
-    // int noz = (1 - density) * T.size();
-
-    // // Place the nnz-th element at nnz-th position using std::nth_element
-    // std::vector<double> elements(T.data(), T.data() + T.size());
-    // std::nth_element(elements.begin(), elements.begin() + noz, elements.end());
-
-    // // Get the threshold value, values less than or equal to this value are set to zero
-    // double thresh = elements[noz]; 
-    // std::cout << "Threshold: " << thresh << std::endl;
-
-    // // Set values less than or equal to the threshold to zero
-    // for (int i = 0; i < n; i++)
-    // {
-    //     for (int j = 0; j < m; j++)
-    //     {
-    //         if (spT(i, j) <= thresh)
-    //         {
-    //             spT(i, j) = 0.0;
-    //         }
-    //     }
-    // }
-
-    // return spT;
 }
 
 // Compute the objective function, gradient, and the true sparsified Hessian in dense format
@@ -739,25 +708,6 @@ void Problem::optimal_alpha(const RefConstVec& beta, RefVec alpha) const
 
     log_sum_exp_rowwise(D, alpha);
     alpha.noalias() = m_reg * (m_loga - alpha);
-}
-
-// Get sparsified matrix with density specified
-Matrix Problem::sparsify_matrix(
-    const Matrix& T, double density
-) const 
-{
-    // Step 1: Flatten the matrix into a vector
-    std::vector<double> elements(T.data(), T.data() + T.size());
-
-    // Step 2: Sort the elements
-    std::sort(elements.begin(), elements.end());
-
-    // Step 3: Determine the threshold for the top ((1 - density) * 100) %
-    size_t threshold_index = static_cast<size_t>(density * elements.size());
-    double threshold = elements[threshold_index];
-
-    // Step 4: Set elements below the threshold to 0
-    return (T.array() >= threshold).select(T, 0.0);
 }
 
 }  // namespace Sinkhorn
