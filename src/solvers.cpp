@@ -299,6 +299,22 @@ SinkhornResult sinkhorn_sparse_newton(
     return result;
 }
 
+SinkhornResult sinkhorn_sparse_newton_sr2(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    SinkhornResult result;
+    SinkhornSolverOpts solver_opts;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
+    Sinkhorn::sinkhorn_sparse_newton_sr2_internal(
+        result, M, a, b, reg, solver_opts, tol, max_iter,
+        verbose, std::cout);
+
+    return result;
+}
+
 SinkhornResult sinkhorn_ssns(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol, int max_iter, int verbose, const py::kwargs &kwargs
@@ -365,6 +381,9 @@ PYBIND11_MODULE(_internal, m) {
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_sparse_newton", &sinkhorn_sparse_newton,
+        "M"_a, "a"_a, "b"_a, "reg"_a,
+        "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
+    m.def("sinkhorn_sparse_newton_sr2", &sinkhorn_sparse_newton_sr2,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_ssns", &sinkhorn_ssns,
