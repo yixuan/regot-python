@@ -42,7 +42,7 @@ void sinkhorn_sparse_newton_sr2_internal(
     Vector y(n + m - 1), s(n + m - 1);
     double f, f_pre;
     Vector g, g_pre;
-    double gnorm, gnorm_pre;
+    double gnorm;
     Hessian H;
     Vector direc;
     Matrix T(n, m);
@@ -73,7 +73,7 @@ void sinkhorn_sparse_newton_sr2_internal(
     
     f_pre = prob.dual_obj_grad(gamma_pre, g_pre); // compute f_pre, g_pre, T_pre
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
-    gnorm_pre = g_pre.norm(), gnorm = g.norm();
+    gnorm = g.norm();
     prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
     TimePoint clock_t2 = Clock::now();
@@ -113,9 +113,11 @@ void sinkhorn_sparse_newton_sr2_internal(
         double alpha = prob.line_search_backtracking(
             gamma, direc, f, g
         );
+        gamma_pre = gamma; // save gamma
         gamma = gamma + alpha * direc;
 
         // Get the new f, g, H
+        f_pre = f, g_pre = g; // save f, g
         f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
         gnorm = g.norm();
         prob.dual_sparsified_hess_with_density(T, g, density, H);
