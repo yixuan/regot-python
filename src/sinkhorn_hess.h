@@ -119,6 +119,15 @@ public:
         double reg, double delta, double density_hint
     );
 
+    /*
+    Input gamma and M, compute the sparsified Hessian representations
+    with fixed density
+    */
+    void compute_hess_with_density(
+        const Matrix& T, const Vector& Trowsum, const Vector& Ttcolsum,
+        double reg, double density
+    );
+
     // Convert to an Eigen sparse matrix
     SpMat to_spmat(bool only_lower=true) const;
 

@@ -1,5 +1,6 @@
 #include "sinkhorn_problem.h"
 #include "approx_proj.h"
+#include "sinkhorn_sparsify.h"
 
 namespace Sinkhorn {
 
@@ -553,24 +554,6 @@ void Problem::dual_obj_grad_densehess(
     hess.array() /= m_reg;
 }
 
-// Helper function to make a matrix sparsified by density
-Matrix Problem::sparsify_by_density(
-    const Matrix& T, double density
-) const
-{
-    // Step 1: Flatten the matrix into a vector
-    std::vector<double> elements(T.data(), T.data() + T.size());
-
-    // Step 2: Sort the elements
-    std::sort(elements.begin(), elements.end());
-
-    // Step 3: Determine the threshold for the top (100 * density)%
-    size_t threshold_index = static_cast<size_t>((1 - density) * elements.size());
-    double threshold = elements[threshold_index];
-
-    // Step 4: Set elements below the threshold to 0
-    return (T.array() > threshold).select(T, 0.0);
-}
 
 // Compute the objective function, gradient, and the true sparsified Hessian in dense format
 void Problem::dual_obj_grad_sparsehess_dense(
@@ -580,7 +563,7 @@ void Problem::dual_obj_grad_sparsehess_dense(
     // Compute obj, grad, and T = exp((alpha (+) beta - M) / reg)
     Matrix T(m_n, m_m), spT(m_n, m_m);
     obj = dual_obj_grad(gamma, grad, T, true);
-    spT = sparsify_by_density(T, density);
+    spT = sparsify_mat4_dense(T, density);
 
     hess.resize(m_n + m_m - 1, m_n + m_m - 1);
     hess.setZero();
@@ -625,6 +608,20 @@ void Problem::dual_sparsified_hess(
     Vector ct = grad.tail(m_m - 1) + m_b.head(m_m - 1);
 
     hess.compute_hess(T, r, ct, m_reg, delta, density_hint);
+}
+
+// Compute the sparsified Hessian with density specified
+void Problem::dual_sparsified_hess_with_density(
+    const Matrix& T, const Vector& grad, double density, Hessian& hess
+) const
+{
+    // Row sums and column sums of T can be obtained from grad,
+    // which saves some computation
+    // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    Vector r = grad.head(m_n) + m_a;
+    Vector ct = grad.tail(m_m - 1) + m_b.head(m_m - 1);
+
+    hess.compute_hess_with_density(T, r, ct, m_reg, density);
 }
 
 // Select a step size

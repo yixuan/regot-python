@@ -97,6 +97,11 @@ public:
         const Matrix& T, const Vector& grad, double delta, double density_hint, Hessian& hess
     ) const;
 
+    // Compute the sparsified Hessian with density specified
+    void dual_sparsified_hess_with_density(
+        const Matrix& T, const Vector& grad, double density, Hessian& hess
+    ) const;
+
     // Select step size
     double line_selection(
         const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
@@ -121,8 +126,6 @@ public:
     // Optimal alpha given beta
     void optimal_alpha(const RefConstVec& beta, RefVec alpha) const;
 
-    // Helper function to make a matrix sparsified by density
-    Matrix sparsify_by_density(const Matrix& T, double density) const;
 };
 
 }  // namespace Sinkhorn
