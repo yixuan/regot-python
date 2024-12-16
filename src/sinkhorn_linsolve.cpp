@@ -110,4 +110,55 @@ void SinkhornLinearSolver::solve(
     }
 }
 
+void SinkhornLinearSolver::solve_sr2(
+    Vector& res,
+    const Hessian& hess, const Vector& rhs,
+    double shift, const Vector& y, const Vector& s,
+    bool analyze_sparsity,
+    std::ostream& cout
+)
+{
+    if (this->method == 0)
+    {
+        // Call CG solver
+        hess_cg(res, hess, rhs, shift,
+                this->cg_x0, this->cg_tol, this->verbose, cout);
+    } else {
+        // Construct sparse matrix
+        const int n = hess.size_n();
+        const int m = hess.size_m();
+        SpMat I(n + m - 1, n + m - 1);
+        I.setIdentity();
+        bool only_lower = (this->method != 3);
+
+#ifdef TIMING
+        TimePoint clock_t1 = Clock::now();
+#endif
+
+        SpMat Hl = hess.to_spmat(only_lower) + shift * I;
+
+#ifdef TIMING
+        TimePoint clock_t2 = Clock::now();
+        std::cout << "[linsolve]================================================" << std::endl;
+        std::cout << "to_sparse = " << (clock_t2 - clock_t1).count() << std::endl;
+        // Eigen::saveMarket(Hl, "mat.mtx");
+#endif
+
+        res.resizeLike(rhs);
+
+        if (this->method == 2)
+        {
+            direct_solver(res, this->m_llt, analyze_sparsity,
+                Hl, rhs, n, m);
+        } else if (this->method == 3) {
+            direct_solver(res, this->m_lu, analyze_sparsity,
+                Hl, rhs, n, m);
+        } else {
+            direct_solver(res, this->m_ldlt, analyze_sparsity,
+                Hl, rhs, n, m);
+        }
+    }
+}
+
 }  // namespace Sinkhorn
+

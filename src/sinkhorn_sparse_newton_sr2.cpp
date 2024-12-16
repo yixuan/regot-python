@@ -38,8 +38,14 @@ void sinkhorn_sparse_newton_sr2_internal(
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
-    Vector gamma(n + m - 1), newgamma(n + m - 1), direc(n + m - 1);
-    double gnorm;
+    Vector gamma(n + m - 1), gamma_pre(n + m - 1);
+    Vector y(n + m - 1), s(n + m - 1);
+    double f, f_pre;
+    Vector g, g_pre;
+    double gnorm, gnorm_pre;
+    Hessian H;
+    Vector direc;
+    Matrix T(n, m);
 
     // Progress statistics
     std::vector<double> obj_vals;
@@ -48,16 +54,12 @@ void sinkhorn_sparse_newton_sr2_internal(
     std::vector<double> run_times;
 
     // Initial value
-    if (opts.x0.size() == gamma.size())
-    {
-        gamma.noalias() = opts.x0;
-    } else {
-        gamma.head(n).setZero();
-        Vector beta(m);
-        prob.optimal_beta(gamma.head(n), beta);
-        gamma.head(n).array() += beta[m - 1];
-        gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
-    }
+    gamma.head(n).setZero();
+    Vector beta(m);
+    prob.optimal_beta(gamma.head(n), beta);
+    gamma.head(n).array() += beta[m - 1];
+    gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
+    gamma_pre.setZero();
 
     // Linear solver
     SinkhornLinearSolver lin_sol;
@@ -68,12 +70,10 @@ void sinkhorn_sparse_newton_sr2_internal(
     // Start timing
     TimePoint clock_t1 = Clock::now();
     // Initial objective function value, gradient, and Hessian
-    double f;
-    Vector g;
-    Hessian H;
-    Matrix T(n, m);
+    
+    f_pre = prob.dual_obj_grad(gamma_pre, g_pre); // compute f_pre, g_pre, T_pre
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
-    gnorm = g.norm();
+    gnorm_pre = g_pre.norm(), gnorm = g.norm();
     prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
     TimePoint clock_t2 = Clock::now();
@@ -102,26 +102,18 @@ void sinkhorn_sparse_newton_sr2_internal(
         if ((gnorm < tol) || (!std::isfinite(f)))
             break;
 
+        // Compute y and s
+        y = g - g_pre;
+        s = gamma - gamma_pre;
+
         // Compute search direction
-        lin_sol.solve(direc, H, -g, shift);
+        lin_sol.solve_sr2(direc, H, -g, shift, y, s);
 
         // Wolfe Line Search
         double alpha = prob.line_search_backtracking(
             gamma, direc, f, g
         );
         gamma = gamma + alpha * direc;
-
-        // double step = 1.0;
-        // double thresh = theta * g.dot(direc);
-        // for (int k = 0; k < nlinesearch; k++)
-        // {
-        //     newgamma.noalias() = gamma + step * direc;
-        //     const double newf = prob.dual_obj(newgamma);
-        //     if (newf <= f + step * thresh)
-        //         break;
-        //     step *= kappa;
-        // }
-        // gamma.swap(newgamma);
 
         // Get the new f, g, H
         f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
