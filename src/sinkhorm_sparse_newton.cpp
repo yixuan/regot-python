@@ -97,18 +97,23 @@ void sinkhorn_sparse_newton_internal(
         Eigen::LLT<Matrix> linsolver(H);
         direc.noalias() = linsolver.solve(-g);
 
-        // Line search
-        double step = 1.0;
-        double thresh = theta * g.dot(direc);
-        for (int k = 0; k < nlinesearch; k++)
-        {
-            newgamma.noalias() = gamma + step * direc;
-            const double newf = prob.dual_obj(newgamma);
-            if (newf <= f + step * thresh)
-                break;
-            step *= kappa;
-        }
-        gamma.swap(newgamma);
+        // Wolfe Line Search
+        double alpha = prob.line_search_backtracking(
+            gamma, direc, f, g
+        );
+        gamma = gamma + alpha * direc;
+
+        // double step = 1.0;
+        // double thresh = theta * g.dot(direc);
+        // for (int k = 0; k < nlinesearch; k++)
+        // {
+        //     newgamma.noalias() = gamma + step * direc;
+        //     const double newf = prob.dual_obj(newgamma);
+        //     if (newf <= f + step * thresh)
+        //         break;
+        //     step *= kappa;
+        // }
+        // gamma.swap(newgamma);
 
         // Get the new f, g, H
         prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
