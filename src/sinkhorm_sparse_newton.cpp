@@ -39,7 +39,7 @@ void sinkhorn_sparse_newton_internal(
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
     Vector gamma(n + m - 1), newgamma(n + m - 1), direc(n + m - 1);
-    Vector cg_x0(m - 1);
+    double gnorm;
 
     // Progress statistics
     std::vector<double> obj_vals;
@@ -70,11 +70,11 @@ void sinkhorn_sparse_newton_internal(
     // Initial objective function value, gradient, and Hessian
     double f;
     Vector g;
-    Matrix H;
+    Hessian H;
     Matrix T(n, m);
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
-    prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
-    double gnorm = g.norm();
+    gnorm = g.norm();
+    prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
     TimePoint clock_t2 = Clock::now();
 
@@ -103,8 +103,7 @@ void sinkhorn_sparse_newton_internal(
             break;
 
         // Compute search direction
-        Eigen::LLT<Matrix> linsolver(H);
-        direc.noalias() = linsolver.solve(-g);
+        lin_sol.solve(direc, H, -g, shift);
 
         // Wolfe Line Search
         double alpha = prob.line_search_backtracking(
@@ -125,8 +124,9 @@ void sinkhorn_sparse_newton_internal(
         // gamma.swap(newgamma);
 
         // Get the new f, g, H
-        prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
+        f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
         gnorm = g.norm();
+        prob.dual_sparsified_hess_with_density(T, g, density, H);
         // Record timing
         clock_t2 = Clock::now();
 
