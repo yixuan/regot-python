@@ -69,6 +69,14 @@ void sinkhorn_sparse_newton_internal(
     std::ostream& cout = std::cout
 );
 
+void sinkhorn_sparse_newton_low_rank_internal(
+    SinkhornResult& result,
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    const SinkhornSolverOpts& opts,
+    double tol = 1e-6, int max_iter = 1000, int verbose = 0,
+    std::ostream& cout = std::cout
+);
+
 void sinkhorn_ssns_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
