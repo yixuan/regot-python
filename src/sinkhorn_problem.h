@@ -100,6 +100,9 @@ public:
 
     // Optimal alpha given beta
     void optimal_alpha(const RefConstVec& beta, RefVec alpha) const;
+
+    // Get sparsified matrix with density specified
+    Matrix sparsify_matrix(const Matrix& T, double density) const;
 };
 
 }  // namespace Sinkhorn

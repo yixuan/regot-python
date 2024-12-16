@@ -661,5 +661,24 @@ void Problem::optimal_alpha(const RefConstVec& beta, RefVec alpha) const
     alpha.noalias() = m_reg * (m_loga - alpha);
 }
 
+// Get sparsified matrix with density specified
+Matrix Problem::sparsify_matrix(
+    const Matrix& T, double density
+) const 
+{
+    // Step 1: Flatten the matrix into a vector
+    std::vector<double> elements(T.data(), T.data() + T.size());
+
+    // Step 2: Sort the elements
+    std::sort(elements.begin(), elements.end());
+
+    // Step 3: Determine the threshold for the top ((1 - density) * 100) %
+    size_t threshold_index = static_cast<size_t>(density * elements.size());
+    double threshold = elements[threshold_index];
+
+    // Step 4: Set elements below the threshold to 0
+    return (T.array() >= threshold).select(T, 0.0);
+}
+
 }  // namespace Sinkhorn
 
