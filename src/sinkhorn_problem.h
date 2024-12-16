@@ -82,7 +82,8 @@ public:
 
     /*
     Compute the objective function, gradient,
-    and the sparsified Hessian represented in dense form
+    and the true sparsified Hessian in dense format.
+    Finally hess = hess + shift * I to avoid singularity.
     */
     void dual_obj_grad_sparsehess_dense(
         const Vector& gamma, double& obj, Vector& grad, Matrix& hess, double density, double shift
@@ -109,8 +110,8 @@ public:
     // Optimal alpha given beta
     void optimal_alpha(const RefConstVec& beta, RefVec alpha) const;
 
-    // Get sparsified matrix with density specified
-    Matrix sparsify_matrix(const Matrix& T, double density) const;
+    // Helper function to make a matrix sparsified by density
+    Matrix sparsify_by_density(const Matrix& T, double density) const;
 };
 
 }  // namespace Sinkhorn

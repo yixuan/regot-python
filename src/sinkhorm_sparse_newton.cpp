@@ -33,8 +33,8 @@ void sinkhorn_sparse_newton_internal(
     // Algorithmic parameters
     constexpr double theta = 0.5, kappa = 0.5;
     constexpr int nlinesearch = 20;
-    double shift = opts.shift;
     double density = opts.density;
+    double shift = opts.shift;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);

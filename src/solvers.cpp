@@ -209,13 +209,13 @@ inline void parse_sinkhorn_opts(
         solver_opts.mu0 = py::float_(kwargs["mu0"]);
     }
     // Used in sparse Newton
-    if (kwargs.contains("shift"))
-    {
-        solver_opts.shift = py::float_(kwargs["shift"]);
-    }
     if (kwargs.contains("density"))
     {
         solver_opts.density = py::float_(kwargs["density"]);
+    }
+    if (kwargs.contains("shift"))
+    {
+        solver_opts.shift = py::float_(kwargs["shift"]);
     }
 }
 

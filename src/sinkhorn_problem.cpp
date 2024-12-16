@@ -553,10 +553,57 @@ void Problem::dual_obj_grad_densehess(
     hess.array() /= m_reg;
 }
 
-/*
-Compute the objective function, gradient,
-and the sparsified Hessian represented in dense form
-*/
+// Helper function to make a matrix sparsified by density
+Matrix Problem::sparsify_by_density(
+    const Matrix& T, double density
+) const
+{
+    // Step 1: Flatten the matrix into a vector
+    std::vector<double> elements(T.data(), T.data() + T.size());
+
+    // Step 2: Sort the elements
+    std::sort(elements.begin(), elements.end());
+
+    // Step 3: Determine the threshold for the top (100 * density)%
+    size_t threshold_index = static_cast<size_t>((1 - density) * elements.size());
+    double threshold = elements[threshold_index];
+
+    // Step 4: Set elements below the threshold to 0
+    return (T.array() > threshold).select(T, 0.0);
+
+    // Matrix spT = T;
+
+    // // Dimensions
+    // int n = T.rows();
+    // int m = T.cols();
+
+    // // Number of zeros
+    // int noz = (1 - density) * T.size();
+
+    // // Place the nnz-th element at nnz-th position using std::nth_element
+    // std::vector<double> elements(T.data(), T.data() + T.size());
+    // std::nth_element(elements.begin(), elements.begin() + noz, elements.end());
+
+    // // Get the threshold value, values less than or equal to this value are set to zero
+    // double thresh = elements[noz]; 
+    // std::cout << "Threshold: " << thresh << std::endl;
+
+    // // Set values less than or equal to the threshold to zero
+    // for (int i = 0; i < n; i++)
+    // {
+    //     for (int j = 0; j < m; j++)
+    //     {
+    //         if (spT(i, j) <= thresh)
+    //         {
+    //             spT(i, j) = 0.0;
+    //         }
+    //     }
+    // }
+
+    // return spT;
+}
+
+// Compute the objective function, gradient, and the true sparsified Hessian in dense format
 void Problem::dual_obj_grad_sparsehess_dense(
     const Vector& gamma, double& obj, Vector& grad, Matrix& hess, double density, double shift
 ) const
@@ -564,7 +611,7 @@ void Problem::dual_obj_grad_sparsehess_dense(
     // Compute obj, grad, and T = exp((alpha (+) beta - M) / reg)
     Matrix T(m_n, m_m), spT(m_n, m_m);
     obj = dual_obj_grad(gamma, grad, T, true);
-    spT = sparsify_matrix(T, density);
+    spT = sparsify_by_density(T, density);
 
     hess.resize(m_n + m_m - 1, m_n + m_m - 1);
     hess.setZero();
@@ -572,17 +619,18 @@ void Problem::dual_obj_grad_sparsehess_dense(
     // Row sums and column sums of T can be obtained from grad,
     // which saves some computation
     // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    // add shift to diagonal elements
     hess.diagonal().head(m_n).noalias() = grad.head(m_n) + m_a;
     hess.diagonal().tail(m_m - 1).noalias() = grad.tail(m_m - 1) + m_b.head(m_m - 1);
+    // hess.diagonal().head(m_n).noalias() = grad.head(m_n) + m_a;
+    // hess.diagonal().tail(m_m - 1).noalias() = grad.tail(m_m - 1) + m_b.head(m_m - 1);
 
-    // Sparsified Off-diagonal elements
+    // Off-diagonal elements
     hess.topRightCorner(m_n, m_m - 1).noalias() = spT.leftCols(m_m - 1);
     hess.bottomLeftCorner(m_m - 1, m_n).noalias() = spT.leftCols(m_m - 1).transpose();
 
     hess.array() /= m_reg;
-
-    // Shift the diagonal
-    hess += shift * Matrix::Identity(m_n + m_m - 1, m_n + m_m - 1);
+    hess = hess + shift * Matrix::Identity(m_n + m_m - 1, m_n + m_m - 1);
 }
 
 // Compute the objective function, gradient, and sparsified Hessian

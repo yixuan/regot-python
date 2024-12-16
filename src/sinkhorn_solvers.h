@@ -20,12 +20,12 @@ struct SinkhornSolverOpts
     // Parameter for SSNS
     double mu0;
     // Parameter for sparse Newton
-    double shift;
     double density;
+    double shift;
 
     // Setting default values
     SinkhornSolverOpts():
-        x0(0), method(0), mu0(1.0), shift(1e-3), density(0.2)
+        x0(0), method(0), mu0(1.0), density(0.1), shift(1e-3)
     {}
 };
 
