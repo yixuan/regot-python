@@ -553,6 +553,38 @@ void Problem::dual_obj_grad_densehess(
     hess.array() /= m_reg;
 }
 
+/*
+Compute the objective function, gradient,
+and the sparsified Hessian represented in dense form
+*/
+void Problem::dual_obj_grad_sparsehess_dense(
+    const Vector& gamma, double& obj, Vector& grad, Matrix& hess, double density, double shift
+) const
+{
+    // Compute obj, grad, and T = exp((alpha (+) beta - M) / reg)
+    Matrix T(m_n, m_m), spT(m_n, m_m);
+    obj = dual_obj_grad(gamma, grad, T, true);
+    spT = sparsify_matrix(T, density);
+
+    hess.resize(m_n + m_m - 1, m_n + m_m - 1);
+    hess.setZero();
+
+    // Row sums and column sums of T can be obtained from grad,
+    // which saves some computation
+    // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    hess.diagonal().head(m_n).noalias() = grad.head(m_n) + m_a;
+    hess.diagonal().tail(m_m - 1).noalias() = grad.tail(m_m - 1) + m_b.head(m_m - 1);
+
+    // Sparsified Off-diagonal elements
+    hess.topRightCorner(m_n, m_m - 1).noalias() = spT.leftCols(m_m - 1);
+    hess.bottomLeftCorner(m_m - 1, m_n).noalias() = spT.leftCols(m_m - 1).transpose();
+
+    hess.array() /= m_reg;
+
+    // Shift the diagonal
+    hess += shift * Matrix::Identity(m_n + m_m - 1, m_n + m_m - 1);
+}
+
 // Compute the objective function, gradient, and sparsified Hessian
 // void Problem::dual_obj_grad_hess(
 //     const Vector& gamma, double delta, double& obj, Vector& grad, Hessian& hess

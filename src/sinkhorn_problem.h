@@ -80,6 +80,14 @@ public:
         const Vector& gamma, double& obj, Vector& grad, Matrix& hess
     ) const;
 
+    /*
+    Compute the objective function, gradient,
+    and the sparsified Hessian represented in dense form
+    */
+    void dual_obj_grad_sparsehess_dense(
+        const Vector& gamma, double& obj, Vector& grad, Matrix& hess, double density, double shift
+    ) const;
+
     // Compute the objective function, gradient, and sparsified Hessian
     // void dual_obj_grad_hess(
     //     const Vector& gamma, double delta, double& obj, Vector& grad, Hessian& hess

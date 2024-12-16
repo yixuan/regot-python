@@ -64,7 +64,7 @@ void sinkhorn_sparse_newton_internal(
     double f;
     Vector g;
     Matrix H;
-    prob.dual_obj_grad_densehess(gamma, f, g, H);
+    prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
     double gnorm = g.norm();
     // Record timing
     TimePoint clock_t2 = Clock::now();
@@ -111,7 +111,7 @@ void sinkhorn_sparse_newton_internal(
         gamma.swap(newgamma);
 
         // Get the new f, g, H
-        prob.dual_obj_grad_densehess(gamma, f, g, H);
+        prob.dual_obj_grad_sparsehess_dense(gamma, f, g, H, density, shift);
         gnorm = g.norm();
         // Record timing
         clock_t2 = Clock::now();
