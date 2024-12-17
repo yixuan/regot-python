@@ -2,6 +2,7 @@
 #define REGOT_SINKHORN_LINSOLVE_H
 
 #include <iostream>
+#include <Eigen/Dense>
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <Eigen/SparseLU>
