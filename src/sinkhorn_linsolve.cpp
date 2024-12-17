@@ -110,4 +110,38 @@ void SinkhornLinearSolver::solve(
     }
 }
 
+void SinkhornLinearSolver::solve_low_rank(
+    Vector& res,
+    const Hessian& hess, const Vector& rhs,
+    double shift, const Vector& y, const Vector& s,
+    std::ostream& cout
+)
+{
+    // Construct sparse matrix
+    const int n = hess.size_n();
+    const int m = hess.size_m();
+    SpMat I(n + m - 1, n + m - 1);
+    I.setIdentity();
+    SpMat Hl = hess.to_spmat(false) + shift * I;
+
+    // Intermediate variables for Woodbury formula
+    Vector u = y, v = Hl * s;
+    double a = 1.0 / u.dot(s), b = -1.0 / v.dot(s);
+
+    Matrix U(n + m - 1, 2);
+    U << a * u, b * v;
+
+    Matrix V(2, n + m - 1);
+    V << u.transpose(), v.transpose();
+
+    // Construct LDLT Solver
+    Eigen::SimplicialLDLT<SpMat> solver;
+    solver.compute(Hl);
+
+    // Solve the sparse linear system
+    Vector Hl_inv_rhs = solver.solve(rhs);
+    Matrix Hl_inv_U = solver.solve(U); 
+    res = Hl_inv_rhs - Hl_inv_U * (Eigen::Matrix2d::Identity() + V * Hl_inv_U).inverse() * (V * Hl_inv_rhs);
+}
+
 }  // namespace Sinkhorn
