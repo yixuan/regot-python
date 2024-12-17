@@ -167,7 +167,7 @@ void SinkhornLinearSolver::solve_sr2(
     Vector Hl_inv_rhs = solver.solve(rhs);
     Matrix Hl_inv_U = solver.solve(U); 
 
-    res = Hl_inv_rhs - Hl_inv_U * (Eigen::Matrix2d::Identity() + V * Hl_inv_U).inverse() * V * Hl_inv_rhs;
+    res = Hl_inv_rhs - Hl_inv_U * (Eigen::Matrix2d::Identity() + V * Hl_inv_U).inverse() * (V * Hl_inv_rhs);
 }
 
 }  // namespace Sinkhorn
