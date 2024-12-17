@@ -107,6 +107,7 @@ void sinkhorn_sparse_newton_sr2_internal(
         s = gamma - gamma_pre;
 
         // Compute search direction
+        // direc = (Hl + auu' + bvv')^{-1} * (-g)
         lin_sol.solve_sr2(direc, H, -g, shift, y, s);
 
         // Wolfe Line Search
