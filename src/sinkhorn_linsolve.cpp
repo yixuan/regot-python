@@ -131,70 +131,70 @@ void SinkhornLinearSolver::solve_sr2(
 
 
     /* Stupid Sparse implementation */
-    const int n = hess.size_n();
-    const int m = hess.size_m();
-    SpMat I(n + m - 1, n + m - 1);
-    I.setIdentity();
-    SpMat Hl = hess.to_spmat(false) + shift * I;
-    Vector u = y, v = Hl * s;
-    double a = 1.0 / u.dot(s), b = -1.0 / v.dot(s);
-    Eigen::SimplicialLLT<SpMat> solver;
-    solver.compute(
-        Hl + ((a * u) * u.transpose()).sparseView()
-           + ((b * v) * v.transpose()).sparseView()
-    );
-    res = solver.solve(rhs);
-
-
-    /* Improved Sparse implementation */
-    // Construct sparse matrix
     // const int n = hess.size_n();
     // const int m = hess.size_m();
     // SpMat I(n + m - 1, n + m - 1);
     // I.setIdentity();
-
-    // // Hl = Hs + shift * I
     // SpMat Hl = hess.to_spmat(false) + shift * I;
+    // Vector u = y, v = Hl * s;
+    // double a = 1.0 / u.dot(s), b = -1.0 / v.dot(s);
+    // Eigen::SimplicialLLT<SpMat> solver;
+    // solver.compute(
+    //     Hl + ((a * u) * u.transpose()).sparseView()
+    //        + ((b * v) * v.transpose()).sparseView()
+    // );
+    // res = solver.solve(rhs);
+
+
+    /* Improved Sparse implementation */
+    // Construct sparse matrix
+    const int n = hess.size_n();
+    const int m = hess.size_m();
+    SpMat I(n + m - 1, n + m - 1);
+    I.setIdentity();
+
+    // Hl = Hs + shift * I
+    SpMat Hl = hess.to_spmat(false) + shift * I;
 
     // /* intermediate variables */
-    // Vector u = y, v = Hl * s;
-    // /*
-    // O = [
-    //     [u' * Hl^{-1} * u + 1/a, u' * Hl^{-1} * v],
-    //     [v' * Hl^{-1} * u, v' * Hl^{-1} * v + 1/b]
-    // ]^{-1}
-    // */
-    // Eigen::Matrix2d O;
-    // /*
+    Vector u = y, v = Hl * s;
+    /*
+    O = [
+        [u' * Hl^{-1} * u + 1/a, u' * Hl^{-1} * v],
+        [v' * Hl^{-1} * u, v' * Hl^{-1} * v + 1/b]
+    ]^{-1}
+    */
+    Eigen::Matrix2d O;
+    /*
+    P = [Hl^{-1} * u, Hl^{-1} * v]
+    Q = [u, v]
+    */
+    Eigen::MatrixX2d P, Q;
+    /* Define solver */
+    Eigen::SimplicialLLT<SpMat> solver;
+    solver.compute(Hl);
+
+    /* Solve intermediate values */
+    Vector Hl_inv_rhs = solver.solve(rhs);
+    Vector Hl_inv_u = solver.solve(u);
+    Vector Hl_inv_v = solver.solve(v);
+
+    // Compute O
+    O(0, 0) = u.dot(Hl_inv_u) + u.dot(s);
+    O(0, 1) = u.dot(Hl_inv_v);
+    O(1, 0) = O(0, 1);
+    O(2, 2) = v.dot(Hl_inv_v) + v.dot(s);
+    O = O.inverse();
+
     // P = [Hl^{-1} * u, Hl^{-1} * v]
+    P.col(0) = Hl_inv_u;
+    P.col(1) = Hl_inv_v;
+
     // Q = [u, v]
-    // */
-    // Eigen::MatrixX2d P, Q;
-    // /* Define solver */
-    // Eigen::SimplicialLLT<SpMat> solver;
-    // solver.compute(Hl);
-
-    // /* Solve intermediate values */
-    // Vector Hl_inv_rhs = solver.solve(rhs);
-    // Vector Hl_inv_u = solver.solve(u);
-    // Vector Hl_inv_v = solver.solve(v);
-
-    // // Compute O
-    // O(0, 0) = u.dot(Hl_inv_u) + u.dot(s);
-    // O(0, 1) = u.dot(Hl_inv_v);
-    // O(1, 0) = O(0, 1);
-    // O(2, 2) = v.dot(Hl_inv_v) + v.dot(s);
-    // O = O.inverse();
-
-    // // P = [Hl^{-1} * u, Hl^{-1} * v]
-    // P.col(0) = Hl_inv_u;
-    // P.col(1) = Hl_inv_v;
-
-    // // Q = [u, v]
-    // Q.col(0) = u;
-    // Q.col(1) = v;
+    Q.col(0) = u;
+    Q.col(1) = v;
     
-    // res = Hl_inv_rhs - P * O * Q.transpose() * Hl_inv_rhs;
+    res = Hl_inv_rhs - P * O * Q.transpose() * Hl_inv_rhs;
 }
 
 }  // namespace Sinkhorn
