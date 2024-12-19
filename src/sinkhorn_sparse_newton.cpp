@@ -106,22 +106,22 @@ void sinkhorn_sparse_newton_internal(
         lin_sol.solve(direc, H, -g, shift);
 
         // Wolfe Line Search
-        double alpha = prob.line_search_backtracking(
-            gamma, direc, f, g
-        );
-        gamma = gamma + alpha * direc;
+        // double alpha = prob.line_search_backtracking(
+        //     gamma, direc, f, g
+        // );
+        // gamma = gamma + alpha * direc;
 
-        // double step = 1.0;
-        // double thresh = theta * g.dot(direc);
-        // for (int k = 0; k < nlinesearch; k++)
-        // {
-        //     newgamma.noalias() = gamma + step * direc;
-        //     const double newf = prob.dual_obj(newgamma);
-        //     if (newf <= f + step * thresh)
-        //         break;
-        //     step *= kappa;
-        // }
-        // gamma.swap(newgamma);
+        double step = 1.0;
+        double thresh = 0.5 * g.dot(direc);
+        for (int k = 0; k < 1000; k++)
+        {
+            newgamma.noalias() = gamma + step * direc;
+            const double newf = prob.dual_obj(newgamma);
+            if (newf <= f + step * thresh)
+                break;
+            step *= 0.5;
+        }
+        gamma.swap(newgamma);
 
         // Get the new f, g, H
         f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
