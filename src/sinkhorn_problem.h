@@ -111,6 +111,17 @@ public:
         std::ostream& cout = std::cout
     ) const;
 
+    /*
+    Backtracking line search with armijo conditions.
+    */
+    double line_selection_armijo(
+        const Vector& gamma, const Vector& direc,
+        double f, const Vector& g,
+        double theta = 0.5, double kappa = 0.5,
+        int max_iter = 20, bool verbose = false,
+        std::ostream& cout = std::cout
+    ) const;
+
     // Optimal beta given alpha
     void optimal_beta(const RefConstVec& alpha, RefVec beta) const;
 

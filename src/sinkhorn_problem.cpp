@@ -667,6 +667,31 @@ double Problem::line_selection_wolfe(
     return alpha;
 }
 
+/*
+Backtracking line search with armijo conditions.
+*/
+double Problem::line_selection_armijo(
+    const Vector& gamma, const Vector& direc,
+    double f, const Vector& g,
+    double theta, double kappa,
+    int max_iter, bool verbose,
+    std::ostream& cout
+) const
+{
+    double alpha = 1.0;
+    double thresh = theta * g.dot(direc);
+    Vector newgamma = gamma;
+    for (int k = 0; k < max_iter; k++)
+    {
+        newgamma.noalias() = gamma + alpha * direc;
+        const double newf = dual_obj(newgamma);
+        if (newf <= f + alpha * thresh)
+            break;
+        alpha *= kappa;
+    }
+    return alpha;
+}
+
 // Optimal beta given alpha
 void Problem::optimal_beta(const RefConstVec& alpha, RefVec beta) const
 {
