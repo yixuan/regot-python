@@ -290,6 +290,7 @@ SinkhornResult sinkhorn_sparse_newton(
 {
     SinkhornResult result;
     SinkhornSolverOpts solver_opts;
+    solver_opts.method = 1;
     parse_sinkhorn_opts(solver_opts, kwargs);
 
     Sinkhorn::sinkhorn_sparse_newton_internal(
