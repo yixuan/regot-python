@@ -100,6 +100,17 @@ public:
         std::ostream& cout = std::cout
     ) const;
 
+    /*
+    Backtracking line search with wolfe conditions.
+    */
+    double line_selection_wolfe(
+        const Vector& gamma, const Vector& direc,
+        double f, const Vector& g,
+        double c1 = 1e-4, double c2 = 0.9,
+        int max_iter = 20, bool verbose = false,
+        std::ostream& cout = std::cout
+    ) const;
+
     // Optimal beta given alpha
     void optimal_beta(const RefConstVec& alpha, RefVec beta) const;
 

@@ -620,6 +620,53 @@ double Problem::line_selection(
     return best_step;
 }
 
+/*
+Backtracking line search with wolfe conditions.
+*/
+double Problem::line_selection_wolfe(
+    const Vector& gamma, const Vector& direc,
+    double f, const Vector& g,
+    double c1, double c2,
+    int max_iter, bool verbose,
+    std::ostream& cout
+) const
+{
+    // Set up parameters for line search
+    double alpha = 1.0;
+
+    // Variables for line search
+    double newf = std::numeric_limits<double>::infinity();
+    Vector newgamma = gamma;
+    Vector newg= g;
+
+    // Backtracking line search
+    int i;
+    for (i = 0; i < max_iter; ++i)
+    {
+        newgamma.noalias() = gamma + alpha * direc;
+        newf = dual_obj_grad(newgamma, newg);
+
+        double dot_prod = g.dot(direc);
+        if (newf > f + c1 * alpha * dot_prod)
+        {
+            // alpha too large, f value too high
+            alpha *= 0.5;
+        }
+        else if (newg.dot(direc) < c2 * dot_prod)
+        {
+            // alpha too small, gradient too small (gradient is negative)
+            alpha *= 2.1;
+        }
+        else
+        {
+            // condition satisfied
+            break;
+        }
+    }
+
+    return alpha;
+}
+
 // Optimal beta given alpha
 void Problem::optimal_beta(const RefConstVec& alpha, RefVec beta) const
 {
