@@ -35,6 +35,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
     double shift = opts.shift;
     int method = opts.method;
     double cg_tol = 1e-8;
+    double eps = 1e-6;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
@@ -104,7 +105,13 @@ void sinkhorn_sparse_newton_low_rank_internal(
         s = gamma - gamma_pre;
 
         // Compute search direction
-        lin_sol.solve_low_rank(direc, H, -g, shift, y, s);
+        // When <y, s> is too small, don't use low-rank update
+        if (y.dot(s) > (eps * y.squaredNorm())) {
+            lin_sol.solve_low_rank(direc, H, -g, shift, y, s);
+        }
+        else {
+            lin_sol.solve(direc, H, -g, shift);
+        }
 
         // Armijo Line Search
         double alpha = prob.line_selection_armijo(
