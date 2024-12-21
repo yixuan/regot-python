@@ -25,7 +25,7 @@ struct SinkhornSolverOpts
 
     // Setting default values
     SinkhornSolverOpts():
-        x0(0), method(0), mu0(1.0), density(0.1), shift(1e-3)
+        x0(0), method(0), mu0(1.0), density(0.1), shift(1e-6)
     {}
 };
 
