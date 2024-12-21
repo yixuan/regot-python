@@ -28,7 +28,7 @@ SpMat sparsify_mat4(
     // find the threshold
     int num_zeros = Tt.size() * (1 - density);
     std::nth_element(elements.begin(), elements.begin() + num_zeros, elements.end());
-    double threshold = Tt(num_zeros);
+    double threshold = elements[num_zeros];
     
     return Tt.sparseView(threshold, 1.0);
 }
