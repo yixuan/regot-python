@@ -578,6 +578,20 @@ void Problem::dual_sparsified_hess(
     hess.compute_hess(T, r, ct, m_reg, delta, density_hint);
 }
 
+// Compute the sparsified Hessian with density specified
+void Problem::dual_sparsified_hess_with_density(
+    const Matrix& T, const Vector& grad, double density, Hessian& hess
+) const
+{
+    // Row sums and column sums of T can be obtained from grad,
+    // which saves some computation
+    // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    Vector r = grad.head(m_n) + m_a;
+    Vector ct = grad.tail(m_m - 1) + m_b.head(m_m - 1);
+
+    hess.compute_hess_with_density(T, r, ct, m_reg, density);
+}
+
 // Select a step size
 double Problem::line_selection(
     const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
