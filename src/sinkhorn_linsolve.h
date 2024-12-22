@@ -5,6 +5,7 @@
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
 #include <Eigen/SparseLU>
+#include <Eigen/LU> // inverse
 #include <Eigen/SparseCholesky>
 #include "sinkhorn_hess.h"
 
@@ -42,6 +43,13 @@ public:
         Vector& res,
         const Hessian& hess, const Vector& rhs, double shift,
         bool analyze_sparsity = true,
+        std::ostream& cout = std::cout
+    );
+
+    void solve_low_rank(
+        Vector& res,
+        const Hessian& hess, const Vector& rhs,
+        double shift, const Vector& y, const Vector& s,
         std::ostream& cout = std::cout
     );
 };

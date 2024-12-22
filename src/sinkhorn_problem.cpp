@@ -578,6 +578,20 @@ void Problem::dual_sparsified_hess(
     hess.compute_hess(T, r, ct, m_reg, delta, density_hint);
 }
 
+// Compute the sparsified Hessian with density specified
+void Problem::dual_sparsified_hess_with_density(
+    const Matrix& T, const Vector& grad, double density, Hessian& hess
+) const
+{
+    // Row sums and column sums of T can be obtained from grad,
+    // which saves some computation
+    // r = T * 1m = grad_a + a, c = T' * 1n = grad_b + b
+    Vector r = grad.head(m_n) + m_a;
+    Vector ct = grad.tail(m_m - 1) + m_b.head(m_m - 1);
+
+    hess.compute_hess_with_density(T, r, ct, m_reg, density);
+}
+
 // Select a step size
 double Problem::line_selection(
     const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
@@ -604,6 +618,78 @@ double Problem::line_selection(
         }
     }
     return best_step;
+}
+
+/*
+Backtracking line search with wolfe conditions.
+*/
+double Problem::line_selection_wolfe(
+    const Vector& gamma, const Vector& direc,
+    double f, const Vector& g,
+    double c1, double c2,
+    int max_iter, bool verbose,
+    std::ostream& cout
+) const
+{
+    // Set up parameters for line search
+    double alpha = 1.0;
+
+    // Variables for line search
+    double newf = std::numeric_limits<double>::infinity();
+    Vector newgamma = gamma;
+    Vector newg= g;
+
+    // Backtracking line search
+    int i;
+    for (i = 0; i < max_iter; ++i)
+    {
+        newgamma.noalias() = gamma + alpha * direc;
+        newf = dual_obj_grad(newgamma, newg);
+
+        double dot_prod = g.dot(direc);
+        if (newf > f + c1 * alpha * dot_prod)
+        {
+            // alpha too large, f value too high
+            alpha *= 0.5;
+        }
+        else if (newg.dot(direc) < c2 * dot_prod)
+        {
+            // alpha too small, gradient too small (gradient is negative)
+            alpha *= 2.1;
+        }
+        else
+        {
+            // condition satisfied
+            break;
+        }
+    }
+
+    return alpha;
+}
+
+/*
+Backtracking line search with armijo conditions.
+*/
+double Problem::line_selection_armijo(
+    const Vector& gamma, const Vector& direc,
+    double f, const Vector& g,
+    double theta, double kappa,
+    int max_iter, bool verbose,
+    std::ostream& cout
+) const
+{
+    double alpha = 1.0;
+    double thresh = theta * g.dot(direc);
+    Vector newgamma = gamma;
+    for (int k = 0; k < max_iter; k++)
+    {
+        newgamma.noalias() = gamma + alpha * direc;
+        const double newf = dual_obj(newgamma);
+        if (newf <= f + alpha * thresh)
+            break;
+        alpha *= kappa;
+    }
+    return alpha;
 }
 
 // Optimal beta given alpha

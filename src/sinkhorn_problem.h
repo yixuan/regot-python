@@ -88,10 +88,37 @@ public:
         const Matrix& T, const Vector& grad, double delta, double density_hint, Hessian& hess
     ) const;
 
+    // Compute the sparsified Hessian with density specified
+    void dual_sparsified_hess_with_density(
+        const Matrix& T, const Vector& grad, double density, Hessian& hess
+    ) const;
+
     // Select step size
     double line_selection(
         const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
         double curobj, Matrix& T, double& objval, bool verbose = false,
+        std::ostream& cout = std::cout
+    ) const;
+
+    /*
+    Backtracking line search with wolfe conditions.
+    */
+    double line_selection_wolfe(
+        const Vector& gamma, const Vector& direc,
+        double f, const Vector& g,
+        double c1 = 1e-4, double c2 = 0.9,
+        int max_iter = 20, bool verbose = false,
+        std::ostream& cout = std::cout
+    ) const;
+
+    /*
+    Backtracking line search with armijo conditions.
+    */
+    double line_selection_armijo(
+        const Vector& gamma, const Vector& direc,
+        double f, const Vector& g,
+        double theta = 0.5, double kappa = 0.5,
+        int max_iter = 20, bool verbose = false,
         std::ostream& cout = std::cout
     ) const;
 
