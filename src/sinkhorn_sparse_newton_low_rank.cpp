@@ -35,7 +35,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
     double shift = opts.shift;
     int method = opts.method;
     double cg_tol = 1e-8;
-    double eps = 1e-6;
+    constexpr double eps = std::numeric_limits<double>::epsilon();
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
