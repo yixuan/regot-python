@@ -43,7 +43,7 @@ Currently **RegOT** contains the following solvers for EROT:
 ([link to paper](https://arxiv.org/pdf/1802.04367)).
 - `sinkhorn_lbfgs_dual`: the L-BFGS algorithm applied to the dual problem of EROT.
 - `sinkhorn_newton`: Newton's method applied to the dual problem of EROT.
-- `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, paper to appear soon).
+- `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, [this is our paper!](https://openreview.net/pdf?id=Nmmiyjw7Xg)).
 
 The following solvers are available for the QROT problem:
 
