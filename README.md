@@ -29,7 +29,7 @@ QROT, also known as the Euclidean-regularized OT, is concerned with the problem
 
 ```math
 \begin{align*}
-\min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle+\gamma \Vert T \Vert_F^2,\\
+\min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle+(\gamma/2) \Vert T \Vert_F^2,\\
 \text{subject to}\quad & T\mathbf{1}_{m}=a,T^{T}\mathbf{1}_{n}=b,T\ge0.
 \end{align*}
 ```
