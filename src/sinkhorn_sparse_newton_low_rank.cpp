@@ -39,27 +39,26 @@ void sinkhorn_sparse_newton_low_rank_internal(
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
-    Vector gamma(n + m - 1), gamma_pre(n + m - 1);
-    Vector y(n + m - 1), s(n + m - 1);
-    double f, f_pre;
-    Vector g, g_pre;
+    Vector gamma(n + m - 1), gamma_pre(n + m - 1), direc(n + m - 1);
     double gnorm;
-    Hessian H;
-    Vector direc;
-    Matrix T(n, m);
+    Vector y(n + m - 1), s(n + m - 1);
 
     // Progress statistics
     std::vector<double> obj_vals;
-    std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
 
     // Initial value
-    gamma.head(n).setZero();
-    Vector beta(m);
-    prob.optimal_beta(gamma.head(n), beta);
-    gamma.head(n).array() += beta[m - 1];
-    gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
+    if (opts.x0.size() == gamma.size())
+    {
+        gamma.noalias() = opts.x0;
+    } else {
+        gamma.head(n).setZero();
+        Vector beta(m);
+        prob.optimal_beta(gamma.head(n), beta);
+        gamma.head(n).array() += beta[m - 1];
+        gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
+    }
     gamma_pre.setZero();
 
     // Linear solver
@@ -71,6 +70,10 @@ void sinkhorn_sparse_newton_low_rank_internal(
     // Start timing
     TimePoint clock_t1 = Clock::now();
     // Initial objective function value, gradient, and Hessian
+    double f, f_pre;
+    Vector g, g_pre;
+    Hessian H;
+    Matrix T(n, m);
     f_pre = prob.dual_obj_grad(gamma_pre, g_pre, T, true); // compute f_pre, g_pre, T_pre
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
     gnorm = g.norm();
@@ -101,17 +104,21 @@ void sinkhorn_sparse_newton_low_rank_internal(
             break;
 
         // Compute y and s
-        y = g - g_pre;
-        s = gamma - gamma_pre;
+        TimePoint clock_s1 = Clock::now();
+        y.noalias() = g - g_pre;
+        s.noalias() = gamma - gamma_pre;
 
         // Compute search direction
         // When <y, s> is too small, don't use low-rank update
-        if (y.dot(s) > (eps * y.squaredNorm())) {
+        const double ys = y.dot(s);
+        const double yy = y.squaredNorm();
+        const bool low_rank = (ys > (eps * yy));
+        if (low_rank) {
             lin_sol.solve_low_rank(direc, H, -g, shift, y, s);
-        }
-        else {
+        } else {
             lin_sol.solve(direc, H, -g, shift);
         }
+        TimePoint clock_s2 = Clock::now();
 
         // Armijo Line Search
         double alpha = prob.line_search_armijo(
@@ -119,14 +126,32 @@ void sinkhorn_sparse_newton_low_rank_internal(
         );
         gamma_pre.noalias() = gamma; // save gamma
         gamma.noalias() += alpha * direc;
+        TimePoint clock_s3 = Clock::now();
 
         // Get the new f, g, H
         f_pre = f;  // save f, g
         g_pre.swap(g);  // save f, g
         // T has been computed in line search
         f = prob.dual_obj_grad(gamma, g, T, false); // compute f, g, T
+        TimePoint clock_s4 = Clock::now();
         gnorm = g.norm();
         prob.dual_sparsified_hess_with_density(T, g, density, H);
+        TimePoint clock_s5 = Clock::now();
+
+        if (verbose >= 2)
+        {
+            cout << "[lowrank]---------------------------------------------------" << std::endl;
+            cout << "║ ys = " << ys << ", yy = " << yy << std::endl;
+            cout << "║ low_rank = " << low_rank << std::endl;
+            cout << "===========================================================" << std::endl;
+            cout << "[timing]---------------------------------------------------" << std::endl;
+            cout << "║ lin_solve = " << (clock_s2 - clock_s1).count() <<
+                ", line_search = " << (clock_s3 - clock_s2).count() << std::endl;
+            cout << "║ grad = " << (clock_s4 - clock_s3).count() <<
+                ", hess = " << (clock_s5 - clock_s4).count() << std::endl;
+            cout << "===========================================================" << std::endl << std::endl;
+        }
+
         // Record timing
         clock_t2 = Clock::now();
 
