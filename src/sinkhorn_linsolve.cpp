@@ -117,6 +117,8 @@ void SinkhornLinearSolver::solve_low_rank(
     std::ostream& cout
 )
 {
+    res.resizeLike(rhs);
+
     // Construct sparse matrix
     const int n = hess.size_n();
     const int m = hess.size_m();
@@ -130,10 +132,12 @@ void SinkhornLinearSolver::solve_low_rank(
     double a = 1.0 / u.dot(s), b = -1.0 / v.dot(s);
 
     Matrix U(n + m - 1, 2);
-    U << a * u, b * v;
+    U.col(0).noalias() = a * u;
+    U.col(1).noalias() = b * v;
 
-    Matrix V(2, n + m - 1);
-    V << u.transpose(), v.transpose();
+    Matrix V(n + m - 1, 2);
+    V.col(0).noalias() = u;
+    V.col(1).noalias() = v;
 
     // Construct LDLT Solver
     Eigen::SimplicialLDLT<SpMat> solver;
@@ -142,7 +146,8 @@ void SinkhornLinearSolver::solve_low_rank(
     // Solve the sparse linear system
     Vector Hl_inv_rhs = solver.solve(rhs);
     Matrix Hl_inv_U = solver.solve(U);
-    res = Hl_inv_rhs - Hl_inv_U * (Eigen::Matrix2d::Identity() + V * Hl_inv_U).inverse() * (V * Hl_inv_rhs);
+    Eigen::Matrix2d middle = Eigen::Matrix2d::Identity() + V.transpose() * Hl_inv_U;
+    res.noalias() = Hl_inv_rhs - Hl_inv_U * (middle.lu().solve(V.transpose() * Hl_inv_rhs));
 }
 
 }  // namespace Sinkhorn
