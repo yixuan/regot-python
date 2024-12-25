@@ -100,18 +100,35 @@ void sinkhorn_sparse_newton_internal(
             break;
 
         // Compute search direction
+        TimePoint clock_s1 = Clock::now();
         lin_sol.solve(direc, H, -g, shift);
+        TimePoint clock_s2 = Clock::now();
 
         // Armijo Line Search
-        double alpha = prob.line_selection_armijo(
-            gamma, direc, f, g
+        double alpha = prob.line_search_armijo(
+            gamma, direc, T, f, g
         );
-        gamma = gamma + alpha * direc;
+        gamma.noalias() += alpha * direc;
+        TimePoint clock_s3 = Clock::now();
 
         // Get the new f, g, H
-        f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
+        // T has been computed in line search
+        f = prob.dual_obj_grad(gamma, g, T, false);
+        TimePoint clock_s4 = Clock::now();
         gnorm = g.norm();
         prob.dual_sparsified_hess_with_density(T, g, density, H);
+        TimePoint clock_s5 = Clock::now();
+
+        if (verbose >= 2)
+        {
+            cout << "[timing]---------------------------------------------------" << std::endl;
+            cout << "║ lin_solve = " << (clock_s2 - clock_s1).count() <<
+                ", line_search = " << (clock_s3 - clock_s2).count() << std::endl;
+            cout << "║ grad = " << (clock_s4 - clock_s3).count() <<
+                ", hess = " << (clock_s5 - clock_s4).count() << std::endl;
+            cout << "===========================================================" << std::endl << std::endl;
+        }
+
         // Record timing
         clock_t2 = Clock::now();
 
