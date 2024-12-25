@@ -70,11 +70,13 @@ void sinkhorn_sparse_newton_low_rank_internal(
     // Start timing
     TimePoint clock_t1 = Clock::now();
     // Initial objective function value, gradient, and Hessian
-    double f, f_pre;
-    Vector g, g_pre;
+    double f;
+    Vector g(n + m - 1), g_pre(n + m - 1);
     Hessian H;
     Matrix T(n, m);
-    f_pre = prob.dual_obj_grad(gamma_pre, g_pre, T, true); // compute f_pre, g_pre, T_pre
+    // We do not do low-rank update in the first iteration,
+    // so we do not need to compute g_pre, as it will be overwritten later
+    g_pre.setZero();
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
     gnorm = g.norm();
     prob.dual_sparsified_hess_with_density(T, g, density, H);
@@ -109,10 +111,11 @@ void sinkhorn_sparse_newton_low_rank_internal(
         s.noalias() = gamma - gamma_pre;
 
         // Compute search direction
+        // We do not do low-rank update in the first iteration
         // When <y, s> is too small, don't use low-rank update
         const double ys = y.dot(s);
         const double yy = y.squaredNorm();
-        const bool low_rank = (ys > (eps * yy));
+        const bool low_rank = (i > 0) && (ys > (eps * yy));
         if (low_rank) {
             lin_sol.solve_low_rank(direc, H, -g, shift, y, s);
         } else {
@@ -129,8 +132,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
         TimePoint clock_s3 = Clock::now();
 
         // Get the new f, g, H
-        f_pre = f;  // save f, g
-        g_pre.swap(g);  // save f, g
+        g_pre.swap(g);  // save g
         // T has been computed in line search
         f = prob.dual_obj_grad(gamma, g, T, false); // compute f, g, T
         TimePoint clock_s4 = Clock::now();
@@ -172,4 +174,3 @@ void sinkhorn_sparse_newton_low_rank_internal(
 }
 
 }  // namespace Sinkhorn
-
