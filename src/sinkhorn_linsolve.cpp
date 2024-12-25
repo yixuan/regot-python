@@ -122,10 +122,11 @@ void SinkhornLinearSolver::solve_low_rank(
     const int m = hess.size_m();
     SpMat I(n + m - 1, n + m - 1);
     I.setIdentity();
-    SpMat Hl = hess.to_spmat(false) + shift * I;
+    const bool only_lower = true;
+    SpMat Hl = hess.to_spmat(only_lower) + shift * I;
 
     // Intermediate variables for Woodbury formula
-    Vector u = y, v = Hl * s;
+    Vector u = y, v = Hl.selfadjointView<Eigen::Lower>() * s;
     double a = 1.0 / u.dot(s), b = -1.0 / v.dot(s);
 
     Matrix U(n + m - 1, 2);
@@ -140,7 +141,7 @@ void SinkhornLinearSolver::solve_low_rank(
 
     // Solve the sparse linear system
     Vector Hl_inv_rhs = solver.solve(rhs);
-    Matrix Hl_inv_U = solver.solve(U); 
+    Matrix Hl_inv_U = solver.solve(U);
     res = Hl_inv_rhs - Hl_inv_U * (Eigen::Matrix2d::Identity() + V * Hl_inv_U).inverse() * (V * Hl_inv_rhs);
 }
 
