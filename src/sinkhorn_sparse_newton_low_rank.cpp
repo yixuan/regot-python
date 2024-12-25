@@ -71,7 +71,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
     // Start timing
     TimePoint clock_t1 = Clock::now();
     // Initial objective function value, gradient, and Hessian
-    f_pre = prob.dual_obj_grad(gamma_pre, g_pre); // compute f_pre, g_pre, T_pre
+    f_pre = prob.dual_obj_grad(gamma_pre, g_pre, T, true); // compute f_pre, g_pre, T_pre
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
     gnorm = g.norm();
     prob.dual_sparsified_hess_with_density(T, g, density, H);
@@ -114,15 +114,17 @@ void sinkhorn_sparse_newton_low_rank_internal(
         }
 
         // Armijo Line Search
-        double alpha = prob.line_selection_armijo(
-            gamma, direc, f, g
+        double alpha = prob.line_search_armijo(
+            gamma, direc, T, f, g
         );
-        gamma_pre = gamma; // save gamma
-        gamma = gamma + alpha * direc;
+        gamma_pre.noalias() = gamma; // save gamma
+        gamma.noalias() += alpha * direc;
 
         // Get the new f, g, H
-        f_pre = f, g_pre = g; // save f, g
-        f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
+        f_pre = f;  // save f, g
+        g_pre.swap(g);  // save f, g
+        // T has been computed in line search
+        f = prob.dual_obj_grad(gamma, g, T, false); // compute f, g, T
         gnorm = g.norm();
         prob.dual_sparsified_hess_with_density(T, g, density, H);
         // Record timing

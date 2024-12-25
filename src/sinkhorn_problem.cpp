@@ -620,11 +620,9 @@ double Problem::line_selection(
     return best_step;
 }
 
-/*
-Backtracking line search with wolfe conditions.
-*/
-double Problem::line_selection_wolfe(
-    const Vector& gamma, const Vector& direc,
+// Backtracking line search with Wolfe conditions
+double Problem::line_search_wolfe(
+    const Vector& gamma, const Vector& direc, Matrix& T,
     double f, const Vector& g,
     double c1, double c2,
     int max_iter, bool verbose,
@@ -644,7 +642,7 @@ double Problem::line_selection_wolfe(
     for (i = 0; i < max_iter; ++i)
     {
         newgamma.noalias() = gamma + alpha * direc;
-        newf = dual_obj_grad(newgamma, newg);
+        newf = dual_obj_grad(newgamma, newg, T, true);
 
         double dot_prod = g.dot(direc);
         if (newf > f + c1 * alpha * dot_prod)
@@ -667,11 +665,9 @@ double Problem::line_selection_wolfe(
     return alpha;
 }
 
-/*
-Backtracking line search with armijo conditions.
-*/
-double Problem::line_selection_armijo(
-    const Vector& gamma, const Vector& direc,
+// Backtracking line search with Armijo conditions
+double Problem::line_search_armijo(
+    const Vector& gamma, const Vector& direc, Matrix& T,
     double f, const Vector& g,
     double theta, double kappa,
     int max_iter, bool verbose,
@@ -684,7 +680,7 @@ double Problem::line_selection_armijo(
     for (int k = 0; k < max_iter; k++)
     {
         newgamma.noalias() = gamma + alpha * direc;
-        const double newf = dual_obj(newgamma);
+        const double newf = dual_obj(newgamma, T);
         if (newf <= f + alpha * thresh)
             break;
         alpha *= kappa;
