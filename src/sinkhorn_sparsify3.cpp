@@ -7,7 +7,9 @@
 #ifdef __AVX2__
 #include "sorting/xss-common-includes.h"
 #include "sorting/xss-common-qsort.h"
+#include "sorting/xss-common-argsort.h"
 #include "sorting/avx2-64bit-qsort.hpp"
+#include "sorting/avx2-32bit-half.hpp"
 #endif
 
 // Whether to print detailed timing information
