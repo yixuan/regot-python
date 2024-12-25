@@ -3,6 +3,19 @@
 
 #include "xss-common-includes.h"
 
+template <typename vtype, typename maskType>
+typename vtype::opmask_t convert_int_to_mask(maskType mask)
+{
+    if constexpr (vtype::vec_type == simd_type::AVX512) { return mask; }
+    else if constexpr (vtype::vec_type == simd_type::AVX2) {
+        return vtype::convert_int_to_mask(mask);
+    }
+    else {
+        static_assert(always_false<maskType>,
+                      "Error in func convert_int_to_mask");
+    }
+}
+
 template <typename keyType, typename valueType>
 typename valueType::opmask_t resize_mask(typename keyType::opmask_t mask)
 {
@@ -65,267 +78,20 @@ X86_SIMD_SORT_INLINE reg_t1 cmp_merge(reg_t1 in1,
     return tmp_keys; // 0 -> min, 1 -> max
 }
 
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t sort_reg_16lanes(reg_t key_zmm,
-                                            index_type &index_zmm)
-{
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(index_zmm),
-            0xAAAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(0, 1, 2, 3)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(0, 1, 2, 3)>(index_zmm),
-            0xCCCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(index_zmm),
-            0xAAAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_32BIT_3), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_32BIT_3), index_zmm),
-            0xF0F0);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(index_zmm),
-            0xCCCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(index_zmm),
-            0xAAAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_32BIT_5), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_32BIT_5), index_zmm),
-            0xFF00);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_32BIT_6), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_32BIT_6), index_zmm),
-            0xF0F0);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(index_zmm),
-            0xCCCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(index_zmm),
-            0xAAAA);
-    return key_zmm;
-}
-
-// Assumes zmm is bitonic and performs a recursive half cleaner
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t bitonic_merge_reg_16lanes(reg_t key_zmm,
-                                                     index_type &index_zmm)
-{
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_32BIT_7), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_32BIT_7), index_zmm),
-            0xFF00);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_32BIT_6), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_32BIT_6), index_zmm),
-            0xF0F0);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 0, 3, 2)>(index_zmm),
-            0xCCCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(2, 3, 0, 1)>(index_zmm),
-            0xAAAA);
-    return key_zmm;
-}
-
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t sort_reg_8lanes(reg_t key_zmm, index_type &index_zmm)
-{
-    const typename vtype1::regi_t rev_index1 = vtype1::seti(NETWORK_64BIT_2);
-    const typename vtype2::regi_t rev_index2 = vtype2::seti(NETWORK_64BIT_2);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(index_zmm),
-            0xAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_64BIT_1), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_64BIT_1), index_zmm),
-            0xCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(index_zmm),
-            0xAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(rev_index1, key_zmm),
-            index_zmm,
-            vtype2::permutexvar(rev_index2, index_zmm),
-            0xF0);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_64BIT_3), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_64BIT_3), index_zmm),
-            0xCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(index_zmm),
-            0xAA);
-    return key_zmm;
-}
-
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t sort_ymm_64bit(reg_t key_zmm, index_type &index_zmm)
-{
-    using key_swizzle = typename vtype1::swizzle_ops;
-    using index_swizzle = typename vtype2::swizzle_ops;
-
-    const typename vtype1::opmask_t oxAA = vtype1::seti(-1, 0, -1, 0);
-    const typename vtype1::opmask_t oxCC = vtype1::seti(-1, -1, 0, 0);
-
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            key_swizzle::template swap_n<vtype1, 2>(key_zmm),
-            index_zmm,
-            index_swizzle::template swap_n<vtype2, 2>(index_zmm),
-            oxAA);
-    key_zmm = cmp_merge<vtype1, vtype2>(key_zmm,
-                                        vtype1::reverse(key_zmm),
-                                        index_zmm,
-                                        vtype2::reverse(index_zmm),
-                                        oxCC);
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            key_swizzle::template swap_n<vtype1, 2>(key_zmm),
-            index_zmm,
-            index_swizzle::template swap_n<vtype2, 2>(index_zmm),
-            oxAA);
-    return key_zmm;
-}
-
-// Assumes zmm is bitonic and performs a recursive half cleaner
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t bitonic_merge_reg_8lanes(reg_t key_zmm,
-                                                    index_type &index_zmm)
-{
-
-    // 1) half_cleaner[8]: compare 0-4, 1-5, 2-6, 3-7
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_64BIT_4), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_64BIT_4), index_zmm),
-            0xF0);
-    // 2) half_cleaner[4]
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::permutexvar(vtype1::seti(NETWORK_64BIT_3), key_zmm),
-            index_zmm,
-            vtype2::permutexvar(vtype2::seti(NETWORK_64BIT_3), index_zmm),
-            0xCC);
-    // 3) half_cleaner[1]
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            vtype1::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(key_zmm),
-            index_zmm,
-            vtype2::template shuffle<SHUFFLE_MASK(1, 1, 1, 1)>(index_zmm),
-            0xAA);
-    return key_zmm;
-}
-
-template <typename vtype1,
-          typename vtype2,
-          typename reg_t = typename vtype1::reg_t,
-          typename index_type = typename vtype2::reg_t>
-X86_SIMD_SORT_INLINE reg_t bitonic_merge_ymm_64bit(reg_t key_zmm,
-                                                   index_type &index_zmm)
-{
-    using key_swizzle = typename vtype1::swizzle_ops;
-    using index_swizzle = typename vtype2::swizzle_ops;
-
-    const typename vtype1::opmask_t oxAA = vtype1::seti(-1, 0, -1, 0);
-    const typename vtype1::opmask_t oxCC = vtype1::seti(-1, -1, 0, 0);
-
-    // 2) half_cleaner[4]
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            key_swizzle::template swap_n<vtype1, 4>(key_zmm),
-            index_zmm,
-            index_swizzle::template swap_n<vtype2, 4>(index_zmm),
-            oxCC);
-    // 3) half_cleaner[1]
-    key_zmm = cmp_merge<vtype1, vtype2>(
-            key_zmm,
-            key_swizzle::template swap_n<vtype1, 2>(key_zmm),
-            index_zmm,
-            index_swizzle::template swap_n<vtype2, 2>(index_zmm),
-            oxAA);
-    return key_zmm;
-}
-
 template <typename keyType, typename valueType>
 X86_SIMD_SORT_INLINE void
 bitonic_merge_dispatch(typename keyType::reg_t &key,
                        typename valueType::reg_t &value)
 {
     constexpr int numlanes = keyType::numlanes;
-    if constexpr (numlanes == 8) {
+    if constexpr (numlanes == 4) {
+        key = bitonic_merge_reg_4lanes<keyType, valueType>(key, value);
+    }
+    else if constexpr (numlanes == 8) {
         key = bitonic_merge_reg_8lanes<keyType, valueType>(key, value);
     }
     else if constexpr (numlanes == 16) {
         key = bitonic_merge_reg_16lanes<keyType, valueType>(key, value);
-    }
-    else if constexpr (numlanes == 4) {
-        key = bitonic_merge_ymm_64bit<keyType, valueType>(key, value);
     }
     else {
         static_assert(always_false<keyType>,
@@ -340,14 +106,14 @@ X86_SIMD_SORT_INLINE void sort_vec_dispatch(typename keyType::reg_t &key,
                                             typename valueType::reg_t &value)
 {
     constexpr int numlanes = keyType::numlanes;
-    if constexpr (numlanes == 8) {
+    if constexpr (numlanes == 4) {
+        key = sort_reg_4lanes<keyType, valueType>(key, value);
+    }
+    else if constexpr (numlanes == 8) {
         key = sort_reg_8lanes<keyType, valueType>(key, value);
     }
     else if constexpr (numlanes == 16) {
         key = sort_reg_16lanes<keyType, valueType>(key, value);
-    }
-    else if constexpr (numlanes == 4) {
-        key = sort_ymm_64bit<keyType, valueType>(key, value);
     }
     else {
         static_assert(always_false<keyType>,
@@ -441,9 +207,8 @@ bitonic_fullmerge_n_vec(typename keyType::reg_t *keys,
 }
 
 template <typename keyType, typename indexType, int numVecs>
-X86_SIMD_SORT_INLINE void argsort_n_vec(typename keyType::type_t *keys,
-                                        arrsize_t *indices,
-                                        int N)
+X86_SIMD_SORT_INLINE void
+argsort_n_vec(typename keyType::type_t *keys, arrsize_t *indices, int N)
 {
     using kreg_t = typename keyType::reg_t;
     using ireg_t = typename indexType::reg_t;
@@ -555,9 +320,10 @@ X86_SIMD_SORT_INLINE void kvsort_n_vec(typename keyType::type_t *keys,
     for (int i = numVecs / 2, j = 0; i < numVecs; i++, j++) {
         keyVecs[i] = keyType::mask_loadu(
                 keyType::zmm_max(), ioMasks[j], keys + i * keyType::numlanes);
-        valueVecs[i] = valueType::mask_loadu(valueType::zmm_max(),
-                                             ioMasks[j],
-                                             values + i * valueType::numlanes);
+        valueVecs[i] = valueType::mask_loadu(
+                valueType::zmm_max(),
+                resize_mask<keyType, valueType>(ioMasks[j]),
+                values + i * valueType::numlanes);
     }
 
     // Sort each loaded vector
@@ -580,15 +346,15 @@ X86_SIMD_SORT_INLINE void kvsort_n_vec(typename keyType::type_t *keys,
     for (int i = numVecs / 2, j = 0; i < numVecs; i++, j++) {
         keyType::mask_storeu(
                 keys + i * keyType::numlanes, ioMasks[j], keyVecs[i]);
-        valueType::mask_storeu(
-                values + i * valueType::numlanes, ioMasks[j], valueVecs[i]);
+        valueType::mask_storeu(values + i * valueType::numlanes,
+                               resize_mask<keyType, valueType>(ioMasks[j]),
+                               valueVecs[i]);
     }
 }
 
 template <typename keyType, typename indexType, int maxN>
-X86_SIMD_SORT_INLINE void argsort_n(typename keyType::type_t *keys,
-                                    arrsize_t *indices,
-                                    int N)
+X86_SIMD_SORT_INLINE void
+argsort_n(typename keyType::type_t *keys, arrsize_t *indices, int N)
 {
     static_assert(keyType::numlanes == indexType::numlanes,
                   "invalid pairing of value/index types");

@@ -7,7 +7,6 @@
 #ifndef XSS_COMMON_ARGSORT
 #define XSS_COMMON_ARGSORT
 
-#include "xss-common-qsort.h"
 #include "xss-network-keyvaluesort.hpp"
 #include <numeric>
 
@@ -173,13 +172,13 @@ X86_SIMD_SORT_INLINE int32_t partition_vec(type_t *arg,
  * last element that is less than equal to the pivot.
  */
 template <typename vtype, typename argtype, typename type_t>
-X86_SIMD_SORT_INLINE arrsize_t partition_avx512(type_t *arr,
-                                                arrsize_t *arg,
-                                                arrsize_t left,
-                                                arrsize_t right,
-                                                type_t pivot,
-                                                type_t *smallest,
-                                                type_t *biggest)
+X86_SIMD_SORT_INLINE arrsize_t argpartition(type_t *arr,
+                                            arrsize_t *arg,
+                                            arrsize_t left,
+                                            arrsize_t right,
+                                            type_t pivot,
+                                            type_t *smallest,
+                                            type_t *biggest)
 {
     /* make array length divisible by vtype::numlanes , shortening the array */
     for (int32_t i = (right - left) % vtype::numlanes; i > 0; --i) {
@@ -292,16 +291,16 @@ template <typename vtype,
           typename argtype,
           int num_unroll,
           typename type_t = typename vtype::type_t>
-X86_SIMD_SORT_INLINE arrsize_t partition_avx512_unrolled(type_t *arr,
-                                                         arrsize_t *arg,
-                                                         arrsize_t left,
-                                                         arrsize_t right,
-                                                         type_t pivot,
-                                                         type_t *smallest,
-                                                         type_t *biggest)
+X86_SIMD_SORT_INLINE arrsize_t argpartition_unrolled(type_t *arr,
+                                                     arrsize_t *arg,
+                                                     arrsize_t left,
+                                                     arrsize_t right,
+                                                     type_t pivot,
+                                                     type_t *smallest,
+                                                     type_t *biggest)
 {
     if (right - left <= 8 * num_unroll * vtype::numlanes) {
-        return partition_avx512<vtype, argtype>(
+        return argpartition<vtype, argtype>(
                 arr, arg, left, right, pivot, smallest, biggest);
     }
     /* make array length divisible by vtype::numlanes , shortening the array */
@@ -469,11 +468,11 @@ X86_SIMD_SORT_INLINE type_t get_pivot_64bit(type_t *arr,
 }
 
 template <typename vtype, typename argtype, typename type_t>
-X86_SIMD_SORT_INLINE void argsort_64bit_(type_t *arr,
-                                         arrsize_t *arg,
-                                         arrsize_t left,
-                                         arrsize_t right,
-                                         arrsize_t max_iters)
+X86_SIMD_SORT_INLINE void argsort_(type_t *arr,
+                                   arrsize_t *arg,
+                                   arrsize_t left,
+                                   arrsize_t right,
+                                   arrsize_t max_iters)
 {
     /*
      * Resort to std::sort if quicksort isnt making any progress
@@ -493,23 +492,22 @@ X86_SIMD_SORT_INLINE void argsort_64bit_(type_t *arr,
     type_t pivot = get_pivot_64bit<vtype>(arr, arg, left, right);
     type_t smallest = vtype::type_max();
     type_t biggest = vtype::type_min();
-    arrsize_t pivot_index = partition_avx512_unrolled<vtype, argtype, 4>(
+    arrsize_t pivot_index = argpartition_unrolled<vtype, argtype, 4>(
             arr, arg, left, right + 1, pivot, &smallest, &biggest);
     if (pivot != smallest)
-        argsort_64bit_<vtype, argtype>(
+        argsort_<vtype, argtype>(
                 arr, arg, left, pivot_index - 1, max_iters - 1);
     if (pivot != biggest)
-        argsort_64bit_<vtype, argtype>(
-                arr, arg, pivot_index, right, max_iters - 1);
+        argsort_<vtype, argtype>(arr, arg, pivot_index, right, max_iters - 1);
 }
 
 template <typename vtype, typename argtype, typename type_t>
-X86_SIMD_SORT_INLINE void argselect_64bit_(type_t *arr,
-                                           arrsize_t *arg,
-                                           arrsize_t pos,
-                                           arrsize_t left,
-                                           arrsize_t right,
-                                           arrsize_t max_iters)
+X86_SIMD_SORT_INLINE void argselect_(type_t *arr,
+                                     arrsize_t *arg,
+                                     arrsize_t pos,
+                                     arrsize_t left,
+                                     arrsize_t right,
+                                     arrsize_t max_iters)
 {
     /*
      * Resort to std::sort if quicksort isnt making any progress
@@ -529,91 +527,113 @@ X86_SIMD_SORT_INLINE void argselect_64bit_(type_t *arr,
     type_t pivot = get_pivot_64bit<vtype>(arr, arg, left, right);
     type_t smallest = vtype::type_max();
     type_t biggest = vtype::type_min();
-    arrsize_t pivot_index = partition_avx512_unrolled<vtype, argtype, 4>(
+    arrsize_t pivot_index = argpartition_unrolled<vtype, argtype, 4>(
             arr, arg, left, right + 1, pivot, &smallest, &biggest);
     if ((pivot != smallest) && (pos < pivot_index))
-        argselect_64bit_<vtype, argtype>(
+        argselect_<vtype, argtype>(
                 arr, arg, pos, left, pivot_index - 1, max_iters - 1);
     else if ((pivot != biggest) && (pos >= pivot_index))
-        argselect_64bit_<vtype, argtype>(
+        argselect_<vtype, argtype>(
                 arr, arg, pos, pivot_index, right, max_iters - 1);
 }
 
 /* argsort methods for 32-bit and 64-bit dtypes */
-template <typename T>
-X86_SIMD_SORT_INLINE void
-avx512_argsort(T *arr, arrsize_t *arg, arrsize_t arrsize, bool hasnan = false)
+template <typename T,
+          template <typename...>
+          typename full_vector,
+          template <typename...>
+          typename half_vector>
+X86_SIMD_SORT_INLINE void xss_argsort(T *arr,
+                                      arrsize_t *arg,
+                                      arrsize_t arrsize,
+                                      bool hasnan = false,
+                                      bool descending = false)
 {
-    /* TODO optimization: on 32-bit, use zmm_vector for 32-bit dtype */
+    /* TODO optimization: on 32-bit, use full_vector for 32-bit dtype */
     using vectype = typename std::conditional<sizeof(T) == sizeof(int32_t),
-                                              ymm_vector<T>,
-                                              zmm_vector<T>>::type;
+                                              half_vector<T>,
+                                              full_vector<T>>::type;
 
     using argtype =
             typename std::conditional<sizeof(arrsize_t) == sizeof(int32_t),
-                                      ymm_vector<arrsize_t>,
-                                      zmm_vector<arrsize_t>>::type;
+                                      half_vector<arrsize_t>,
+                                      full_vector<arrsize_t>>::type;
 
     if (arrsize > 1) {
-        if constexpr (std::is_floating_point_v<T>) {
+        if constexpr (xss::fp::is_floating_point_v<T>) {
             if ((hasnan) && (array_has_nan<vectype>(arr, arrsize))) {
                 std_argsort_withnan(arr, arg, 0, arrsize);
+
+                if (descending) { std::reverse(arg, arg + arrsize); }
+
                 return;
             }
         }
         UNUSED(hasnan);
-        argsort_64bit_<vectype, argtype>(
+        argsort_<vectype, argtype>(
                 arr, arg, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
+
+        if (descending) { std::reverse(arg, arg + arrsize); }
     }
 }
 
 template <typename T>
-X86_SIMD_SORT_INLINE std::vector<arrsize_t>
-avx512_argsort(T *arr, arrsize_t arrsize, bool hasnan = false)
+X86_SIMD_SORT_INLINE void avx512_argsort(T *arr,
+                                         arrsize_t *arg,
+                                         arrsize_t arrsize,
+                                         bool hasnan = false,
+                                         bool descending = false)
 {
-    std::vector<arrsize_t> indices(arrsize);
-    std::iota(indices.begin(), indices.end(), 0);
-    avx512_argsort<T>(arr, indices.data(), arrsize, hasnan);
-    return indices;
-}
-
-/* argsort methods for 32-bit and 64-bit dtypes */
-template <typename T>
-X86_SIMD_SORT_INLINE void
-avx2_argsort(T *arr, arrsize_t *arg, arrsize_t arrsize, bool hasnan = false)
-{
-    using vectype = typename std::conditional<sizeof(T) == sizeof(int32_t),
-                                              avx2_half_vector<T>,
-                                              avx2_vector<T>>::type;
-
-    using argtype =
-            typename std::conditional<sizeof(arrsize_t) == sizeof(int32_t),
-                                      avx2_half_vector<arrsize_t>,
-                                      avx2_vector<arrsize_t>>::type;
-    if (arrsize > 1) {
-        if constexpr (std::is_floating_point_v<T>) {
-            if ((hasnan) && (array_has_nan<vectype>(arr, arrsize))) {
-                std_argsort_withnan(arr, arg, 0, arrsize);
-                return;
-            }
-        }
-        UNUSED(hasnan);
-        argsort_64bit_<vectype, argtype>(
-                arr, arg, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
-    }
+    xss_argsort<T, zmm_vector, ymm_vector>(
+            arr, arg, arrsize, hasnan, descending);
 }
 
 template <typename T>
-X86_SIMD_SORT_INLINE std::vector<arrsize_t>
-avx2_argsort(T *arr, arrsize_t arrsize, bool hasnan = false)
+X86_SIMD_SORT_INLINE void avx2_argsort(T *arr,
+                                       arrsize_t *arg,
+                                       arrsize_t arrsize,
+                                       bool hasnan = false,
+                                       bool descending = false)
 {
-    std::vector<arrsize_t> indices(arrsize);
-    std::iota(indices.begin(), indices.end(), 0);
-    avx2_argsort<T>(arr, indices.data(), arrsize, hasnan);
-    return indices;
+    xss_argsort<T, avx2_vector, avx2_half_vector>(
+            arr, arg, arrsize, hasnan, descending);
 }
 
 /* argselect methods for 32-bit and 64-bit dtypes */
+template <typename T,
+          template <typename...>
+          typename full_vector,
+          template <typename...>
+          typename half_vector>
+X86_SIMD_SORT_INLINE void xss_argselect(T *arr,
+                                        arrsize_t *arg,
+                                        arrsize_t k,
+                                        arrsize_t arrsize,
+                                        bool hasnan = false)
+{
+    /* TODO optimization: on 32-bit, use full_vector for 32-bit dtype */
+    using vectype = typename std::conditional<sizeof(T) == sizeof(int32_t),
+                                              half_vector<T>,
+                                              full_vector<T>>::type;
+
+    using argtype =
+            typename std::conditional<sizeof(arrsize_t) == sizeof(int32_t),
+                                      half_vector<arrsize_t>,
+                                      full_vector<arrsize_t>>::type;
+
+    if (arrsize > 1) {
+        if constexpr (xss::fp::is_floating_point_v<T>) {
+            if ((hasnan) && (array_has_nan<vectype>(arr, arrsize))) {
+                std_argselect_withnan(arr, arg, k, 0, arrsize);
+                return;
+            }
+        }
+        UNUSED(hasnan);
+        argselect_<vectype, argtype>(
+                arr, arg, k, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
+    }
+}
+
 template <typename T>
 X86_SIMD_SORT_INLINE void avx512_argselect(T *arr,
                                            arrsize_t *arg,
@@ -621,40 +641,9 @@ X86_SIMD_SORT_INLINE void avx512_argselect(T *arr,
                                            arrsize_t arrsize,
                                            bool hasnan = false)
 {
-    /* TODO optimization: on 32-bit, use zmm_vector for 32-bit dtype */
-    using vectype = typename std::conditional<sizeof(T) == sizeof(int32_t),
-                                              ymm_vector<T>,
-                                              zmm_vector<T>>::type;
-
-    using argtype =
-            typename std::conditional<sizeof(arrsize_t) == sizeof(int32_t),
-                                      ymm_vector<arrsize_t>,
-                                      zmm_vector<arrsize_t>>::type;
-
-    if (arrsize > 1) {
-        if constexpr (std::is_floating_point_v<T>) {
-            if ((hasnan) && (array_has_nan<vectype>(arr, arrsize))) {
-                std_argselect_withnan(arr, arg, k, 0, arrsize);
-                return;
-            }
-        }
-        UNUSED(hasnan);
-        argselect_64bit_<vectype, argtype>(
-                arr, arg, k, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
-    }
+    xss_argselect<T, zmm_vector, ymm_vector>(arr, arg, k, arrsize, hasnan);
 }
 
-template <typename T>
-X86_SIMD_SORT_INLINE std::vector<arrsize_t>
-avx512_argselect(T *arr, arrsize_t k, arrsize_t arrsize, bool hasnan = false)
-{
-    std::vector<arrsize_t> indices(arrsize);
-    std::iota(indices.begin(), indices.end(), 0);
-    avx512_argselect<T>(arr, indices.data(), k, arrsize, hasnan);
-    return indices;
-}
-
-/* argselect methods for 32-bit and 64-bit dtypes */
 template <typename T>
 X86_SIMD_SORT_INLINE void avx2_argselect(T *arr,
                                          arrsize_t *arg,
@@ -662,36 +651,8 @@ X86_SIMD_SORT_INLINE void avx2_argselect(T *arr,
                                          arrsize_t arrsize,
                                          bool hasnan = false)
 {
-    using vectype = typename std::conditional<sizeof(T) == sizeof(int32_t),
-                                              avx2_half_vector<T>,
-                                              avx2_vector<T>>::type;
-
-    using argtype =
-            typename std::conditional<sizeof(arrsize_t) == sizeof(int32_t),
-                                      avx2_half_vector<arrsize_t>,
-                                      avx2_vector<arrsize_t>>::type;
-
-    if (arrsize > 1) {
-        if constexpr (std::is_floating_point_v<T>) {
-            if ((hasnan) && (array_has_nan<vectype>(arr, arrsize))) {
-                std_argselect_withnan(arr, arg, k, 0, arrsize);
-                return;
-            }
-        }
-        UNUSED(hasnan);
-        argselect_64bit_<vectype, argtype>(
-                arr, arg, k, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
-    }
-}
-
-template <typename T>
-X86_SIMD_SORT_INLINE std::vector<arrsize_t>
-avx2_argselect(T *arr, arrsize_t k, arrsize_t arrsize, bool hasnan = false)
-{
-    std::vector<arrsize_t> indices(arrsize);
-    std::iota(indices.begin(), indices.end(), 0);
-    avx2_argselect<T>(arr, indices.data(), k, arrsize, hasnan);
-    return indices;
+    xss_argselect<T, avx2_vector, avx2_half_vector>(
+            arr, arg, k, arrsize, hasnan);
 }
 
 #endif // XSS_COMMON_ARGSORT

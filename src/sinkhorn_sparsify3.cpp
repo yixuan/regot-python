@@ -5,6 +5,7 @@
 
 // Fast sorting functions
 #ifdef __AVX2__
+#include "sorting/xss-common-includes.h"
 #include "sorting/xss-common-qsort.h"
 #include "sorting/avx2-64bit-qsort.hpp"
 #endif

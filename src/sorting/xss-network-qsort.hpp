@@ -2,9 +2,14 @@
 #define XSS_NETWORK_QSORT
 
 #include "xss-optimal-networks.hpp"
-#include "xss-common-qsort.h"
 
-template <typename vtype, int numVecs, typename reg_t = typename vtype::reg_t>
+template <typename vtype, typename mm_t>
+X86_SIMD_SORT_INLINE void COEX(mm_t &a, mm_t &b);
+
+template <typename vtype,
+          typename comparator,
+          int numVecs,
+          typename reg_t = typename vtype::reg_t>
 X86_SIMD_SORT_FINLINE void bitonic_sort_n_vec(reg_t *regs)
 {
     if constexpr (numVecs == 1) {
@@ -12,19 +17,19 @@ X86_SIMD_SORT_FINLINE void bitonic_sort_n_vec(reg_t *regs)
         return;
     }
     else if constexpr (numVecs == 2) {
-        COEX<vtype>(regs[0], regs[1]);
+        comparator::COEX(regs[0], regs[1]);
     }
     else if constexpr (numVecs == 4) {
-        optimal_sort_4<vtype>(regs);
+        optimal_sort_4<vtype, comparator>(regs);
     }
     else if constexpr (numVecs == 8) {
-        optimal_sort_8<vtype>(regs);
+        optimal_sort_8<vtype, comparator>(regs);
     }
     else if constexpr (numVecs == 16) {
-        optimal_sort_16<vtype>(regs);
+        optimal_sort_16<vtype, comparator>(regs);
     }
     else if constexpr (numVecs == 32) {
-        optimal_sort_32<vtype>(regs);
+        optimal_sort_32<vtype, comparator>(regs);
     }
     else {
         static_assert(numVecs == -1, "should not reach here");
@@ -50,7 +55,11 @@ X86_SIMD_SORT_FINLINE void bitonic_sort_n_vec(reg_t *regs)
  * merge_n<8>   = [a,a,a,a,b,b,b,b]
  */
 
-template <typename vtype, int numVecs, int scale, bool first = true>
+template <typename vtype,
+          typename comparator,
+          int numVecs,
+          int scale,
+          bool first = true>
 X86_SIMD_SORT_FINLINE void internal_merge_n_vec(typename vtype::reg_t *reg)
 {
     using reg_t = typename vtype::reg_t;
@@ -66,7 +75,7 @@ X86_SIMD_SORT_FINLINE void internal_merge_n_vec(typename vtype::reg_t *reg)
             for (int i = 0; i < numVecs; i++) {
                 reg_t &v = reg[i];
                 reg_t rev = swizzle::template reverse_n<vtype, scale>(v);
-                COEX<vtype>(rev, v);
+                comparator::COEX(rev, v);
                 v = swizzle::template merge_n<vtype, scale>(v, rev);
             }
         }
@@ -76,15 +85,16 @@ X86_SIMD_SORT_FINLINE void internal_merge_n_vec(typename vtype::reg_t *reg)
             for (int i = 0; i < numVecs; i++) {
                 reg_t &v = reg[i];
                 reg_t swap = swizzle::template swap_n<vtype, scale>(v);
-                COEX<vtype>(swap, v);
+                comparator::COEX(swap, v);
                 v = swizzle::template merge_n<vtype, scale>(v, swap);
             }
         }
-        internal_merge_n_vec<vtype, numVecs, scale / 2, false>(reg);
+        internal_merge_n_vec<vtype, comparator, numVecs, scale / 2, false>(reg);
     }
 }
 
 template <typename vtype,
+          typename comparator,
           int numVecs,
           int scale,
           typename reg_t = typename vtype::reg_t>
@@ -104,27 +114,30 @@ X86_SIMD_SORT_FINLINE void merge_substep_n_vec(reg_t *regs)
     // Do compare exchanges
     X86_SIMD_SORT_UNROLL_LOOP(64)
     for (int i = 0; i < numVecs / 2; i++) {
-        COEX<vtype>(regs[i], regs[numVecs - 1 - i]);
+        comparator::COEX(regs[i], regs[numVecs - 1 - i]);
     }
 
-    merge_substep_n_vec<vtype, numVecs / 2, scale>(regs);
-    merge_substep_n_vec<vtype, numVecs / 2, scale>(regs + numVecs / 2);
+    merge_substep_n_vec<vtype, comparator, numVecs / 2, scale>(regs);
+    merge_substep_n_vec<vtype, comparator, numVecs / 2, scale>(regs
+                                                               + numVecs / 2);
 }
 
 template <typename vtype,
+          typename comparator,
           int numVecs,
           int scale,
           typename reg_t = typename vtype::reg_t>
 X86_SIMD_SORT_FINLINE void merge_step_n_vec(reg_t *regs)
 {
     // Do cross vector merges
-    merge_substep_n_vec<vtype, numVecs, scale>(regs);
+    merge_substep_n_vec<vtype, comparator, numVecs, scale>(regs);
 
     // Do internal vector merges
-    internal_merge_n_vec<vtype, numVecs, scale>(regs);
+    internal_merge_n_vec<vtype, comparator, numVecs, scale>(regs);
 }
 
 template <typename vtype,
+          typename comparator,
           int numVecs,
           int numPer = 2,
           typename reg_t = typename vtype::reg_t>
@@ -135,18 +148,36 @@ X86_SIMD_SORT_FINLINE void merge_n_vec(reg_t *regs)
         return;
     }
     else {
-        merge_step_n_vec<vtype, numVecs, numPer>(regs);
-        merge_n_vec<vtype, numVecs, numPer * 2>(regs);
+        merge_step_n_vec<vtype, comparator, numVecs, numPer>(regs);
+        merge_n_vec<vtype, comparator, numVecs, numPer * 2>(regs);
     }
 }
 
-template <typename vtype, int numVecs, typename reg_t = typename vtype::reg_t>
+template <typename vtype,
+          typename comparator,
+          int numVecs,
+          typename reg_t = typename vtype::reg_t>
+X86_SIMD_SORT_FINLINE void sort_vectors(reg_t *vecs)
+{
+    /* Run the initial sorting network to sort the columns of the [numVecs x
+     * num_lanes] matrix
+     */
+    bitonic_sort_n_vec<vtype, comparator, numVecs>(vecs);
+
+    // Merge the vectors using bitonic merging networks
+    merge_n_vec<vtype, comparator, numVecs>(vecs);
+}
+
+template <typename vtype,
+          typename comparator,
+          int numVecs,
+          typename reg_t = typename vtype::reg_t>
 X86_SIMD_SORT_INLINE void sort_n_vec(typename vtype::type_t *arr, int N)
 {
     static_assert(numVecs > 0, "numVecs should be > 0");
     if constexpr (numVecs > 1) {
         if (N * 2 <= numVecs * vtype::numlanes) {
-            sort_n_vec<vtype, numVecs / 2>(arr, N);
+            sort_n_vec<vtype, comparator, numVecs / 2>(arr, N);
             return;
         }
     }
@@ -171,17 +202,12 @@ X86_SIMD_SORT_INLINE void sort_n_vec(typename vtype::type_t *arr, int N)
     // Masked part of the load
     X86_SIMD_SORT_UNROLL_LOOP(64)
     for (int i = numVecs / 2, j = 0; i < numVecs; i++, j++) {
-        vecs[i] = vtype::mask_loadu(
-                vtype::zmm_max(), ioMasks[j], arr + i * vtype::numlanes);
+        vecs[i] = vtype::mask_loadu(comparator::rightmostPossibleVec(),
+                                    ioMasks[j],
+                                    arr + i * vtype::numlanes);
     }
 
-    /* Run the initial sorting network to sort the columns of the [numVecs x
-     * num_lanes] matrix
-     */
-    bitonic_sort_n_vec<vtype, numVecs>(vecs);
-
-    // Merge the vectors using bitonic merging networks
-    merge_n_vec<vtype, numVecs>(vecs);
+    sort_vectors<vtype, comparator, numVecs>(vecs);
 
     // Unmasked part of the store
     X86_SIMD_SORT_UNROLL_LOOP(64)
@@ -195,7 +221,7 @@ X86_SIMD_SORT_INLINE void sort_n_vec(typename vtype::type_t *arr, int N)
     }
 }
 
-template <typename vtype, int maxN>
+template <typename vtype, typename comparator, int maxN>
 X86_SIMD_SORT_INLINE void sort_n(typename vtype::type_t *arr, int N)
 {
     constexpr int numVecs = maxN / vtype::numlanes;
@@ -204,6 +230,6 @@ X86_SIMD_SORT_INLINE void sort_n(typename vtype::type_t *arr, int N)
     static_assert(powerOfTwo == true && isMultiple == true,
                   "maxN must be vtype::numlanes times a power of 2");
 
-    sort_n_vec<vtype, numVecs>(arr, N);
+    sort_n_vec<vtype, comparator, numVecs>(arr, N);
 }
 #endif

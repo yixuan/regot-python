@@ -8,34 +8,7 @@
 #ifndef AVX2_QSORT_64BIT
 #define AVX2_QSORT_64BIT
 
-#include "xss-common-qsort.h"
 #include "avx2-emu-funcs.hpp"
-
-/*
- * Assumes ymm is random and performs a full sorting network defined in
- * https://en.wikipedia.org/wiki/Bitonic_sorter#/media/File:BitonicSort.svg
- */
-template <typename vtype, typename reg_t = typename vtype::reg_t>
-X86_SIMD_SORT_INLINE reg_t sort_ymm_64bit(reg_t ymm)
-{
-    const typename vtype::opmask_t oxAA
-            = _mm256_set_epi64x(0xFFFFFFFFFFFFFFFF, 0, 0xFFFFFFFFFFFFFFFF, 0);
-    const typename vtype::opmask_t oxCC
-            = _mm256_set_epi64x(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0, 0);
-    ymm = cmp_merge<vtype>(
-            ymm,
-            vtype::template permutexvar<SHUFFLE_MASK(2, 3, 0, 1)>(ymm),
-            oxAA);
-    ymm = cmp_merge<vtype>(
-            ymm,
-            vtype::template permutexvar<SHUFFLE_MASK(0, 1, 2, 3)>(ymm),
-            oxCC);
-    ymm = cmp_merge<vtype>(
-            ymm,
-            vtype::template permutexvar<SHUFFLE_MASK(2, 3, 0, 1)>(ymm),
-            oxAA);
-    return ymm;
-}
 
 struct avx2_64bit_swizzle_ops;
 
@@ -67,13 +40,26 @@ struct avx2_vector<int64_t> {
     static reg_t zmm_max()
     {
         return _mm256_set1_epi64x(type_max());
-    } // TODO: this should broadcast bits as is?
+    }
+    static reg_t zmm_min()
+    {
+        return _mm256_set1_epi64x(type_min());
+    }
+    static opmask_t knot_opmask(opmask_t x)
+    {
+        auto allTrue = _mm256_set1_epi64x(0xFFFF'FFFF'FFFF'FFFF);
+        return _mm256_xor_si256(x, allTrue);
+    }
     static opmask_t get_partial_loadmask(uint64_t num_to_read)
     {
         auto mask = ((0x1ull << num_to_read) - 0x1ull);
         return convert_int_to_avx2_mask_64bit(mask);
     }
-    static ymmi_t seti(int v1, int v2, int v3, int v4)
+    static opmask_t convert_int_to_mask(uint64_t intMask)
+    {
+        return convert_int_to_avx2_mask_64bit(intMask);
+    }
+    static ymmi_t seti(int64_t v1, int64_t v2, int64_t v3, int64_t v4)
     {
         return _mm256_set_epi64x(v1, v2, v3, v4);
     }
@@ -199,7 +185,7 @@ struct avx2_vector<int64_t> {
     }
     static reg_t sort_vec(reg_t x)
     {
-        return sort_ymm_64bit<avx2_vector<type_t>>(x);
+        return sort_reg_4lanes<avx2_vector<type_t>>(x);
     }
     static reg_t cast_from(__m256i v)
     {
@@ -208,6 +194,10 @@ struct avx2_vector<int64_t> {
     static __m256i cast_to(reg_t v)
     {
         return v;
+    }
+    static bool all_false(opmask_t k)
+    {
+        return _mm256_movemask_pd(_mm256_castsi256_pd(k)) == 0;
     }
 };
 template <>
@@ -239,12 +229,25 @@ struct avx2_vector<uint64_t> {
     {
         return _mm256_set1_epi64x(type_max());
     }
+    static reg_t zmm_min()
+    {
+        return _mm256_set1_epi64x(type_min());
+    }
+    static opmask_t knot_opmask(opmask_t x)
+    {
+        auto allTrue = _mm256_set1_epi64x(0xFFFF'FFFF'FFFF'FFFF);
+        return _mm256_xor_si256(x, allTrue);
+    }
     static opmask_t get_partial_loadmask(uint64_t num_to_read)
     {
         auto mask = ((0x1ull << num_to_read) - 0x1ull);
         return convert_int_to_avx2_mask_64bit(mask);
     }
-    static ymmi_t seti(int v1, int v2, int v3, int v4)
+    static opmask_t convert_int_to_mask(uint64_t intMask)
+    {
+        return convert_int_to_avx2_mask_64bit(intMask);
+    }
+    static ymmi_t seti(int64_t v1, int64_t v2, int64_t v3, int64_t v4)
     {
         return _mm256_set_epi64x(v1, v2, v3, v4);
     }
@@ -368,7 +371,7 @@ struct avx2_vector<uint64_t> {
     }
     static reg_t sort_vec(reg_t x)
     {
-        return sort_ymm_64bit<avx2_vector<type_t>>(x);
+        return sort_reg_4lanes<avx2_vector<type_t>>(x);
     }
     static reg_t cast_from(__m256i v)
     {
@@ -378,18 +381,21 @@ struct avx2_vector<uint64_t> {
     {
         return v;
     }
+    static bool all_false(opmask_t k)
+    {
+        return _mm256_movemask_pd(_mm256_castsi256_pd(k)) == 0;
+    }
 };
 
 /*
- * workaround on 64-bit macOS which defines size_t as unsigned long and defines
- * uint64_t as unsigned long long, both of which are 8 bytes
+ * workaround on 64-bit macOS and OpenBSD which both define size_t as unsigned
+ * long and define uint64_t as unsigned long long, both of which are 8 bytes
  */
-#if defined(__APPLE__) && defined(__x86_64__)
+#if (defined(__APPLE__) || defined(__OpenBSD__)) && defined(__x86_64__)
 static_assert(sizeof(size_t) == sizeof(uint64_t),
               "Size of size_t and uint64_t are not the same");
 template <>
-struct avx2_vector<size_t> : public avx2_vector<uint64_t> {
-};
+struct avx2_vector<size_t> : public avx2_vector<uint64_t> {};
 #endif
 
 template <>
@@ -421,10 +427,23 @@ struct avx2_vector<double> {
     {
         return _mm256_set1_pd(type_max());
     }
+    static reg_t zmm_min()
+    {
+        return _mm256_set1_pd(type_min());
+    }
+    static opmask_t knot_opmask(opmask_t x)
+    {
+        auto allTrue = _mm256_set1_epi64x(0xFFFF'FFFF'FFFF'FFFF);
+        return _mm256_xor_si256(x, allTrue);
+    }
     static opmask_t get_partial_loadmask(uint64_t num_to_read)
     {
         auto mask = ((0x1ull << num_to_read) - 0x1ull);
         return convert_int_to_avx2_mask_64bit(mask);
+    }
+    static opmask_t convert_int_to_mask(uint64_t intMask)
+    {
+        return convert_int_to_avx2_mask_64bit(intMask);
     }
     static int32_t convert_mask_to_int(opmask_t mask)
     {
@@ -433,14 +452,12 @@ struct avx2_vector<double> {
     template <int type>
     static opmask_t fpclass(reg_t x)
     {
-        if constexpr (type == (0x01 | 0x80)) {
-            return _mm256_castpd_si256(_mm256_cmp_pd(x, x, _CMP_UNORD_Q));
-        }
-        else {
+        if constexpr (type != (0x01 | 0x80)) {
             static_assert(type == (0x01 | 0x80), "should not reach here");
         }
+        return _mm256_castpd_si256(_mm256_cmp_pd(x, x, _CMP_UNORD_Q));
     }
-    static ymmi_t seti(int v1, int v2, int v3, int v4)
+    static ymmi_t seti(int64_t v1, int64_t v2, int64_t v3, int64_t v4)
     {
         return _mm256_set_epi64x(v1, v2, v3, v4);
     }
@@ -561,7 +578,7 @@ struct avx2_vector<double> {
     }
     static reg_t sort_vec(reg_t x)
     {
-        return sort_ymm_64bit<avx2_vector<type_t>>(x);
+        return sort_reg_4lanes<avx2_vector<type_t>>(x);
     }
     static reg_t cast_from(__m256i v)
     {
@@ -570,6 +587,10 @@ struct avx2_vector<double> {
     static __m256i cast_to(reg_t v)
     {
         return _mm256_castpd_si256(v);
+    }
+    static bool all_false(opmask_t k)
+    {
+        return _mm256_movemask_pd(_mm256_castsi256_pd(k)) == 0;
     }
 };
 
