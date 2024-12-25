@@ -29,7 +29,7 @@ QROT, also known as the Euclidean-regularized OT, is concerned with the problem
 
 ```math
 \begin{align*}
-\min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle+\gamma \Vert T \Vert_F^2,\\
+\min_{T\in\mathbb{R}^{n\times m}}\quad & \langle T,M\rangle+(\gamma/2) \Vert T \Vert_F^2,\\
 \text{subject to}\quad & T\mathbf{1}_{m}=a,T^{T}\mathbf{1}_{n}=b,T\ge0.
 \end{align*}
 ```
@@ -43,7 +43,7 @@ Currently **RegOT** contains the following solvers for EROT:
 ([link to paper](https://arxiv.org/pdf/1802.04367)).
 - `sinkhorn_lbfgs_dual`: the L-BFGS algorithm applied to the dual problem of EROT.
 - `sinkhorn_newton`: Newton's method applied to the dual problem of EROT.
-- `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, paper to appear soon).
+- `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, [this is our paper!](https://openreview.net/pdf?id=Nmmiyjw7Xg)).
 
 The following solvers are available for the QROT problem:
 
