@@ -21,15 +21,15 @@ using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 using SpMat = Eigen::SparseMatrix<double>;
 
+using Scalar = double;
+using Index = int;
+
 #ifdef TIMING
 // https://stackoverflow.com/a/34781413
 using Clock = std::chrono::high_resolution_clock;
 using Duration = std::chrono::duration<double, std::milli>;
 using TimePoint = std::chrono::time_point<Clock, Duration>;
 #endif
-
-using Scalar = double;
-using Index = int;
 
 // 1. First do nth_element() partition such that x is reordered and
 //    x_0, ..., x_{k-1} <= any element in [x_k, ..., x_{n-1}]

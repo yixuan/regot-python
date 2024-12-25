@@ -13,6 +13,9 @@
 #include "sorting/avx2-32bit-half.hpp"
 #endif
 
+// Whether to print detailed timing information
+// #define TIMING 1
+
 namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
@@ -23,6 +26,13 @@ using Tri = Eigen::Triplet<double>;
 using Scalar = double;
 using Index = std::size_t;
 using IndVec = Eigen::Matrix<Index, Eigen::Dynamic, 1>;
+
+#ifdef TIMING
+// https://stackoverflow.com/a/34781413
+using Clock = std::chrono::high_resolution_clock;
+using Duration = std::chrono::duration<double, std::milli>;
+using TimePoint = std::chrono::time_point<Clock, Duration>;
+#endif
 
 // Sparsify with given density, and remove the last column
 SpMat sparsify_mat4_old(
@@ -72,6 +82,10 @@ SpMat sparsify_mat4(
     const Matrix& T, double density
 )
 {
+#ifdef TIMING
+    TimePoint clock_t1 = Clock::now();
+#endif
+
     // Dimensions
     const Index n = T.rows();
     const Index m = T.cols();
@@ -87,9 +101,17 @@ SpMat sparsify_mat4(
     density = std::max(density, 0.0);
     Index k = Index(ind_len * density);
 
+#ifdef TIMING
+    TimePoint clock_t2 = Clock::now();
+#endif
+
     // Note that arg_select() partially sorts data in increasing order
     // So we need to put (ind_len - k) elements to the left
     arg_select(T.data(), ind.data(), ind_len, ind_len - k);
+
+#ifdef TIMING
+    TimePoint clock_t3 = Clock::now();
+#endif
 
     // Now the last k elements in ind contains the indices of the
     // largest k elements in T[:, :-1]
@@ -109,9 +131,23 @@ SpMat sparsify_mat4(
         tri_list.emplace_back(row, col, val);
     }
 
+#ifdef TIMING
+    TimePoint clock_t4 = Clock::now();
+#endif
+
     SpMat sp(n, m - 1);
     sp.setFromTriplets(tri_list.begin(), tri_list.end());
     sp.makeCompressed();
+
+#ifdef TIMING
+    TimePoint clock_t5 = Clock::now();
+    std::cout << "[sparsify]================================================" << std::endl;
+    std::cout << "index = " << (clock_t2 - clock_t1).count() <<
+        ", topk = " << (clock_t3 - clock_t2).count() << std::endl;
+    std::cout << "tri_list = " << (clock_t4 - clock_t3).count() <<
+        ", sp_mat = " << (clock_t5 - clock_t4).count() << std::endl;
+    std::cout << "==========================================================" << std::endl;
+#endif
 
     return sp;
 }
