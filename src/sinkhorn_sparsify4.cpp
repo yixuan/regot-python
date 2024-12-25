@@ -10,6 +10,7 @@
 #include "sorting/xss-common-qsort.h"
 #include "sorting/xss-common-argsort.h"
 #include "sorting/avx2-64bit-qsort.hpp"
+#include "sorting/avx2-32bit-half.hpp"
 #endif
 
 namespace Sinkhorn {
