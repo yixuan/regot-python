@@ -134,8 +134,9 @@ public:
 
     // Backtracking line search with Wolfe conditions
     double line_search_wolfe(
-        const Vector& gamma, const Vector& direc, Matrix& T,
-        double f, const Vector& g,
+        const Vector& gamma, const Vector& direc,
+        double curobj, const Vector& curgrad,
+        Matrix& T,
         double c1 = 1e-4, double c2 = 0.9,
         int max_iter = 20, bool verbose = false,
         std::ostream& cout = std::cout

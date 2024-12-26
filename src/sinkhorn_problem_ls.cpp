@@ -68,8 +68,9 @@ double Problem::line_search_armijo(
 
 // Backtracking line search with Wolfe conditions
 double Problem::line_search_wolfe(
-    const Vector& gamma, const Vector& direc, Matrix& T,
-    double f, const Vector& g,
+    const Vector& gamma, const Vector& direc,
+    double curobj, const Vector& curgrad,
+    Matrix& T,
     double c1, double c2,
     int max_iter, bool verbose,
     std::ostream& cout
@@ -81,7 +82,9 @@ double Problem::line_search_wolfe(
     // Variables for line search
     double newf = std::numeric_limits<double>::infinity();
     Vector newgamma = gamma;
-    Vector newg= g;
+    Vector newg = curgrad;
+    // dot_prod < 0 if direc is a descent direction
+    double dot_prod = curgrad.dot(direc);
 
     // Backtracking line search
     int i;
@@ -90,8 +93,7 @@ double Problem::line_search_wolfe(
         newgamma.noalias() = gamma + alpha * direc;
         newf = dual_obj_grad(newgamma, newg, T, true);
 
-        double dot_prod = g.dot(direc);
-        if (newf > f + c1 * alpha * dot_prod)
+        if (newf > curobj + c1 * alpha * dot_prod)
         {
             // alpha too large, f value too high
             alpha *= 0.5;
