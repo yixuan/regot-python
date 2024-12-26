@@ -55,6 +55,20 @@ public:
     // Return the regularization parameter
     double reg() const { return m_reg; }
 
+    //====================== sinkhorn_problem_bcd.cpp ======================
+    //
+    // Optimal beta given alpha
+    void optimal_beta(const RefConstVec& alpha, RefVec beta) const;
+
+    // Optimal alpha given beta
+    void optimal_alpha(const RefConstVec& beta, RefVec alpha) const;
+    //
+    //======================================================================
+
+
+
+    //====================== sinkhorn_problem_obj.cpp ======================
+    //
     // Compute the primal objective function
     double primal_val(const Vector& gamma) const;
 
@@ -92,11 +106,29 @@ public:
     void dual_sparsified_hess_with_density(
         const Matrix& T, const Vector& grad, double density, Hessian& hess
     ) const;
+    //
+    //======================================================================
 
+
+
+    //====================== sinkhorn_problem_ls.cpp =======================
+    //
     // Select step size
     double line_selection(
-        const std::vector<double>& candid, const Vector& gamma, const Vector& direc,
-        double curobj, Matrix& T, double& objval, bool verbose = false,
+        const std::vector<double>& candid,
+        const Vector& gamma, const Vector& direc, double curobj,
+        Matrix& T, double& objval,
+        bool verbose = false,
+        std::ostream& cout = std::cout
+    ) const;
+
+    // Backtracking line search with Armijo conditions
+    double line_search_armijo(
+        const Vector& gamma, const Vector& direc,
+        double curobj, const Vector& curgrad,
+        Matrix& T,
+        double theta = 0.5, double kappa = 0.5,
+        int max_iter = 20, bool verbose = false,
         std::ostream& cout = std::cout
     ) const;
 
@@ -108,21 +140,8 @@ public:
         int max_iter = 20, bool verbose = false,
         std::ostream& cout = std::cout
     ) const;
-
-    // Backtracking line search with Armijo conditions
-    double line_search_armijo(
-        const Vector& gamma, const Vector& direc, Matrix& T,
-        double f, const Vector& g,
-        double theta = 0.5, double kappa = 0.5,
-        int max_iter = 20, bool verbose = false,
-        std::ostream& cout = std::cout
-    ) const;
-
-    // Optimal beta given alpha
-    void optimal_beta(const RefConstVec& alpha, RefVec beta) const;
-
-    // Optimal alpha given beta
-    void optimal_alpha(const RefConstVec& beta, RefVec alpha) const;
+    //
+    //======================================================================
 };
 
 }  // namespace Sinkhorn

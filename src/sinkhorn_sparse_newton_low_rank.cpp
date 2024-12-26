@@ -125,7 +125,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
 
         // Armijo Line Search
         double alpha = prob.line_search_armijo(
-            gamma, direc, T, f, g
+            gamma, direc, f, g, T
         );
         gamma_pre.noalias() = gamma; // save gamma
         gamma.noalias() += alpha * direc;

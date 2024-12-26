@@ -106,7 +106,7 @@ void sinkhorn_sparse_newton_internal(
 
         // Armijo Line Search
         double alpha = prob.line_search_armijo(
-            gamma, direc, T, f, g
+            gamma, direc, f, g, T
         );
         gamma.noalias() += alpha * direc;
         TimePoint clock_s3 = Clock::now();
