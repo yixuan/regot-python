@@ -32,10 +32,8 @@ void Hessian::compute_hess(
     m_sigmad /= reg;
 }
 
-/*
-Input gamma and M, compute the sparsified Hessian representations
-with fixed density
-*/
+// Input gamma and M, compute the sparsified Hessian representations
+// with fixed density
 void Hessian::compute_hess_with_density(
     const Matrix& T, const Vector& Trowsum, const Vector& Ttcolsum,
     double reg, double density
@@ -52,7 +50,7 @@ void Hessian::compute_hess_with_density(
     m_h2.noalias() = Ttcolsum / reg;
 
     // Sparsify T
-    m_sigmad = sparsify_mat4(T, density);
+    m_sigmad = sparsify_mat_with_density(T, density);
     m_sigmad /= reg;
 }
 

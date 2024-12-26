@@ -35,9 +35,9 @@ using TimePoint = std::chrono::time_point<Clock, Duration>;
 #endif
 
 // Sparsify with given density, and remove the last column
-SpMat sparsify_mat4_old(
-    const Matrix& T, double density
-)
+// Previous implementation
+/*
+SpMat sparsify_mat_with_density(const Matrix& T, double density)
 {
     // cpp argsort: https://gist.github.com/HViktorTsoi/58eabb4f7c5a303ced400bcfa816f6f5
     const int n = T.rows();
@@ -54,6 +54,7 @@ SpMat sparsify_mat4_old(
 
     return Tt.sparseView(threshold, 1.0);
 }
+*/
 
 // Given data vector x(m) and index vector I(n), overwrite I such that
 // I is partitioned into two parts:
@@ -78,9 +79,7 @@ inline void arg_select(const Scalar* x, Index* I, Index n, Index k)
 #endif
 }
 
-SpMat sparsify_mat4(
-    const Matrix& T, double density
-)
+SpMat sparsify_mat_with_density(const Matrix& T, double density)
 {
 #ifdef TIMING
     TimePoint clock_t1 = Clock::now();

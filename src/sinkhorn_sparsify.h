@@ -19,7 +19,7 @@ Eigen::SparseMatrix<double> sparsify_mat3(
     const Eigen::MatrixXd& T, double delta, double density_hint
 );
 
-Eigen::SparseMatrix<double> sparsify_mat4(
+Eigen::SparseMatrix<double> sparsify_mat_with_density(
     const Eigen::MatrixXd& T, double density
 );
 

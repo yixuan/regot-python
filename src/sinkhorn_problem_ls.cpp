@@ -112,6 +112,4 @@ double Problem::line_search_wolfe(
     return alpha;
 }
 
-
 }  // namespace Sinkhorn
-
