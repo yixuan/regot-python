@@ -20,7 +20,7 @@ Eigen::SparseMatrix<double> sparsify_mat3(
 );
 
 Eigen::SparseMatrix<double> sparsify_mat_with_density(
-    const Eigen::MatrixXd& T, double density
+    const Eigen::MatrixXd& T, double density, bool preserve = true
 );
 
 }  // namespace Sinkhorn
