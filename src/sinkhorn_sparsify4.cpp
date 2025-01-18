@@ -79,7 +79,9 @@ inline void arg_select(const Scalar* x, Index* I, Index n, Index k)
 #endif
 }
 
-SpMat sparsify_mat_with_density(const Matrix& T, double density)
+// `preserve = true` means the first row and column of T will always be preserved
+// after the sparsification
+SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
 {
 #ifdef TIMING
     TimePoint clock_t1 = Clock::now();
@@ -116,7 +118,29 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density)
     // largest k elements in T[:, :-1]
     // We can recover the row/column indices as i % n and i // n, respectively
     std::vector<Tri> tri_list;
-    tri_list.reserve(k + 1);
+    // Reserve k elements
+    // In case preserve = true, reserve additional one row and one column of T
+    tri_list.reserve(k + n + m);
+
+    // If preserve = true, first add the first row and column of T to tri_list
+    if (preserve)
+    {
+        // First column
+        const Scalar* column_head = T.data();
+        for (Index i = 0; i < n; i++)
+        {
+            tri_list.emplace_back(i, 0, column_head[i]);
+        }
+        // First row
+        // T[0, 0] has been added, and the last column of T is excluded
+        for (Index j = 1; j < m - 1; j++)
+        {
+            tri_list.emplace_back(0, j, T.coeff(0, j));
+        }
+    }
+
+    // Add the largest k elements to tri_list, and skip potentially redundant values
+    // in the previous step (this only happens in the case preserve = true)
     const Index* ind_start = ind.data() + (ind_len - k);
     const Index* ind_end = ind_start + k;
     const Scalar* data_start = T.data();
@@ -126,8 +150,12 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density)
         const Index i = (*ind_ptr);
         const Index row = i % n;
         const Index col = i / n;
-        const Scalar val = data_start[i];
-        tri_list.emplace_back(row, col, val);
+        const bool skip = preserve && ((row == 0) || (col == 0));
+        if (!skip)
+        {
+            const Scalar val = data_start[i];
+            tri_list.emplace_back(row, col, val);
+        }   
     }
 
 #ifdef TIMING
