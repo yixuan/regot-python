@@ -83,6 +83,8 @@ void sinkhorn_sparse_newton_internal(
     run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
+    // Initial step size
+    double alpha = 1.0;
     for (i = 0; i < max_iter; i++)
     {
         if (verbose >= 1)
@@ -105,8 +107,8 @@ void sinkhorn_sparse_newton_internal(
         TimePoint clock_s2 = Clock::now();
 
         // Armijo Line Search
-        double alpha = prob.line_search_armijo(
-            gamma, direc, f, g, T
+        alpha = prob.line_search_wolfe(
+            std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
         );
         gamma.noalias() += alpha * direc;
         TimePoint clock_s3 = Clock::now();

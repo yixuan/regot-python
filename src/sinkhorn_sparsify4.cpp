@@ -155,7 +155,7 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
         {
             const Scalar val = data_start[i];
             tri_list.emplace_back(row, col, val);
-        }   
+        }
     }
 
 #ifdef TIMING

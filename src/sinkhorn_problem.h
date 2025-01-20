@@ -134,6 +134,7 @@ public:
 
     // Backtracking line search with Wolfe conditions
     double line_search_wolfe(
+        double init_step,
         const Vector& gamma, const Vector& direc,
         double curobj, const Vector& curgrad,
         Matrix& T,

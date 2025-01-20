@@ -89,6 +89,8 @@ void sinkhorn_sparse_newton_low_rank_internal(
     run_times.push_back((clock_t2 - clock_t1).count());
 
     int i;
+    // Initial step size
+    double alpha = 1.0;
     for (i = 0; i < max_iter; i++)
     {
         if (verbose >= 1)
@@ -123,18 +125,18 @@ void sinkhorn_sparse_newton_low_rank_internal(
         }
         TimePoint clock_s2 = Clock::now();
 
-        // Armijo Line Search
-        double alpha = prob.line_search_armijo(
-            gamma, direc, f, g, T
+        // Wolfe Line Search
+        alpha = prob.line_search_wolfe(
+            std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
         );
-        gamma_pre.noalias() = gamma; // save gamma
+        gamma_pre.noalias() = gamma;  // save gamma
         gamma.noalias() += alpha * direc;
         TimePoint clock_s3 = Clock::now();
 
         // Get the new f, g, H
         g_pre.swap(g);  // save g
         // T has been computed in line search
-        f = prob.dual_obj_grad(gamma, g, T, false); // compute f, g, T
+        f = prob.dual_obj_grad(gamma, g, T, false);  // compute f, g, T
         TimePoint clock_s4 = Clock::now();
         gnorm = g.norm();
         prob.dual_sparsified_hess_with_density(T, g, density, H);
