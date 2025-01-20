@@ -48,8 +48,9 @@ public:
 
     void solve_low_rank(
         Vector& res,
-        const Hessian& hess, const Vector& rhs,
-        double shift, const Vector& y, const Vector& s,
+        const Hessian& hess, const Vector& rhs, double shift,
+        const Vector& y, const Vector& s,
+        bool analyze_sparsity = true,
         std::ostream& cout = std::cout
     );
 };
