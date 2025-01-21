@@ -190,7 +190,7 @@ inline double step_selection(
         return (abs(ac - at) >= abs(as - at)) ? ac : as;
 
     // Case 3: ft <= fl, gt * gl >= 0, |gt| < |gl|
-    const double deltal = 1.1, deltau = 0.66;
+    constexpr double deltal = 1.1, deltau = 0.66;
     if (abs(gt) < abs(gl))
     {
         // We choose either ac or as
@@ -222,6 +222,7 @@ inline double step_selection(
         std::max(at + deltau * (au - at), ae);
 }
 
+// More-Thuente line search with Wolfe conditions
 double Problem::line_search_wolfe(
     double init_step,
     const Vector& gamma, const Vector& direc,

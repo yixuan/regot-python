@@ -31,11 +31,13 @@ void sinkhorn_sparse_newton_low_rank_internal(
     const int m = M.cols();
 
     // Algorithmic parameters
-    double density = opts.density;
-    double shift = opts.shift;
+    const double density_max = opts.density,
+        density_min = 0.01 * opts.density;
+    double density = 0.1 * density_max;
+    const double shift_max = opts.shift;
     int method = opts.method;
-    double cg_tol = 1e-8;
-    constexpr double eps = 1e-6; // std::numeric_limits<double>::epsilon();
+    constexpr double cg_tol = 1e-8;
+    constexpr double eps = 1e-6;  // std::numeric_limits<double>::epsilon();
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
@@ -77,8 +79,10 @@ void sinkhorn_sparse_newton_low_rank_internal(
     // We do not do low-rank update in the first iteration,
     // so we do not need to compute g_pre, as it will be overwritten later
     g_pre.setZero();
-    f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
+    // Compute f, g, T
+    f = prob.dual_obj_grad(gamma, g, T, true);
     gnorm = g.norm();
+    // Compute H
     prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
     TimePoint clock_t2 = Clock::now();
@@ -118,6 +122,7 @@ void sinkhorn_sparse_newton_low_rank_internal(
         const double ys = y.dot(s);
         const double yy = y.squaredNorm();
         const bool low_rank = (i > 0) && (ys > (eps * yy));
+        const double shift = std::min(gnorm, shift_max);
         if (low_rank) {
             lin_sol.solve_low_rank(direc, H, -g, shift, y, s);
         } else {
@@ -129,16 +134,25 @@ void sinkhorn_sparse_newton_low_rank_internal(
         alpha = prob.line_search_wolfe(
             std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
         );
-        gamma_pre.noalias() = gamma;  // save gamma
+        // Save gamma to gamma_pre
+        gamma_pre.noalias() = gamma;
+        // Update gamma
         gamma.noalias() += alpha * direc;
         TimePoint clock_s3 = Clock::now();
 
         // Get the new f, g, H
-        g_pre.swap(g);  // save g
+        // Save g to g_pre
+        g_pre.swap(g);
+        // Compute f and g
         // T has been computed in line search
-        f = prob.dual_obj_grad(gamma, g, T, false);  // compute f, g, T
+        f = prob.dual_obj_grad(gamma, g, T, false);
         TimePoint clock_s4 = Clock::now();
+        // Adjust density according to gnorm change
+        const double gnorm_pre = gnorm;
         gnorm = g.norm();
+        density *= (gnorm < gnorm_pre) ? 0.9 : 2.0;
+        density = std::min(density_max, std::max(density_min, density));
+        // Compute H
         prob.dual_sparsified_hess_with_density(T, g, density, H);
         TimePoint clock_s5 = Clock::now();
 

@@ -132,7 +132,7 @@ public:
         std::ostream& cout = std::cout
     ) const;
 
-    // Backtracking line search with Wolfe conditions
+    // More-Thuente line search with Wolfe conditions
     double line_search_wolfe(
         double init_step,
         const Vector& gamma, const Vector& direc,
