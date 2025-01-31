@@ -31,10 +31,12 @@ void sinkhorn_sparse_newton_internal(
     const int m = M.cols();
 
     // Algorithmic parameters
-    double density = opts.density;
-    double shift = opts.shift;
+    const double density_max = opts.density,
+        density_min = 0.01 * opts.density;
+    double density = 0.1 * density_max;
+    const double shift_max = opts.shift;
     int method = opts.method;
-    double cg_tol = 1e-8;
+    constexpr double cg_tol = 1e-8;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
@@ -102,6 +104,7 @@ void sinkhorn_sparse_newton_internal(
             break;
 
         // Compute search direction
+        const double shift = std::min(gnorm, shift_max);
         TimePoint clock_s1 = Clock::now();
         lin_sol.solve(direc, H, -g, shift);
         TimePoint clock_s2 = Clock::now();
@@ -117,7 +120,12 @@ void sinkhorn_sparse_newton_internal(
         // T has been computed in line search
         f = prob.dual_obj_grad(gamma, g, T, false);
         TimePoint clock_s4 = Clock::now();
+        // Adjust density according to gnorm change
+        const double gnorm_pre = gnorm;
         gnorm = g.norm();
+        density *= (gnorm < gnorm_pre) ? 0.9 : 2.0;
+        density = std::min(density_max, std::max(density_min, density));
+        // Compute H
         prob.dual_sparsified_hess_with_density(T, g, density, H);
         TimePoint clock_s5 = Clock::now();
 
