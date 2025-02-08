@@ -69,7 +69,7 @@ void sinkhorn_sparse_newton_internal(
     std::ostream& cout = std::cout
 );
 
-void sinkhorn_sparse_newton_low_rank_internal(
+void sinkhorn_splr_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
