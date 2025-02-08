@@ -301,7 +301,7 @@ SinkhornResult sinkhorn_sparse_newton(
     return result;
 }
 
-SinkhornResult sinkhorn_sparse_newton_low_rank(
+SinkhornResult sinkhorn_splr(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol, int max_iter, int verbose, const py::kwargs &kwargs
 )
@@ -312,7 +312,7 @@ SinkhornResult sinkhorn_sparse_newton_low_rank(
     solver_opts.method = 1;
     parse_sinkhorn_opts(solver_opts, kwargs);
 
-    Sinkhorn::sinkhorn_sparse_newton_low_rank_internal(
+    Sinkhorn::sinkhorn_splr_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
