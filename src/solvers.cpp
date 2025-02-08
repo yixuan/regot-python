@@ -387,7 +387,7 @@ PYBIND11_MODULE(_internal, m) {
     m.def("sinkhorn_sparse_newton", &sinkhorn_sparse_newton,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
-    m.def("sinkhorn_sparse_newton_low_rank", &sinkhorn_sparse_newton_low_rank,
+    m.def("sinkhorn_splr", &sinkhorn_splr,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     m.def("sinkhorn_ssns", &sinkhorn_ssns,
