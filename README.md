@@ -36,14 +36,16 @@ QROT, also known as the Euclidean-regularized OT, is concerned with the problem
 
 ## 🔧 Solvers
 
-Currently **RegOT** contains the following solvers for EROT:
+Currently **RegOT** contains the following solvers for EROT (methods marked with 🌟 are developed by our group!):
 
 - `sinkhorn_bcd`: the block coordinate descent (BCD) algorithm, equivalent to the well-known Sinkhorn algorithm.
 - `sinkhorn_apdagd`: the adaptive primal-dual accelerate gradient descent (APDAGD) algorithm
 ([link to paper](https://arxiv.org/pdf/1802.04367)).
 - `sinkhorn_lbfgs_dual`: the L-BFGS algorithm applied to the dual problem of EROT.
 - `sinkhorn_newton`: Newton's method applied to the dual problem of EROT.
-- `sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, [this is our paper!](https://openreview.net/pdf?id=Nmmiyjw7Xg)).
+- 🌟`sinkhorn_sparse_newton`: Newton-type method using sparsified Hessian matrix, as described in [our SPLR paper](https://openreview.net/pdf?id=WCkMkMcqpb).
+- 🌟`sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, [link to paper](https://openreview.net/pdf?id=Nmmiyjw7Xg)).
+- 🌟`sinkhorn_splr`: the sparse-plus-low-rank quasi-Newton method for the dual problem of EROT (SPLR, [link to paper](https://openreview.net/forum?id=WCkMkMcqpb)).
 
 The following solvers are available for the QROT problem:
 
