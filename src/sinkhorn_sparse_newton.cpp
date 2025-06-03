@@ -1,8 +1,7 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
-#include <Eigen/Cholesky>
+#include "timer.h"
 #include "sinkhorn_hess.h"
 #include "sinkhorn_linsolve.h"
 #include "sinkhorn_problem.h"
@@ -13,11 +12,6 @@ namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 void sinkhorn_sparse_newton_internal(
     SinkhornResult& result,
@@ -67,7 +61,8 @@ void sinkhorn_sparse_newton_internal(
     lin_sol.verbose = verbose;
 
     // Start timing
-    TimePoint clock_t1 = Clock::now();
+    Timer timer, timer_inner;
+    timer.tic();
     // Initial objective function value, gradient, and Hessian
     double f;
     Vector g;
@@ -77,12 +72,12 @@ void sinkhorn_sparse_newton_internal(
     gnorm = g.norm();
     prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
-    TimePoint clock_t2 = Clock::now();
+    double duration = timer.toc("iter");
 
     // Collect progress statistics
     obj_vals.push_back(f);
     mar_errs.push_back(gnorm);
-    run_times.push_back((clock_t2 - clock_t1).count());
+    run_times.push_back(duration);
 
     int i;
     // Initial step size
@@ -96,7 +91,8 @@ void sinkhorn_sparse_newton_internal(
         }
 
         // Start timing
-        clock_t1 = Clock::now();
+        timer.tic();
+        timer_inner.tic();
 
         // Convergence test
         // Also exit if objective function value is not finite
@@ -105,21 +101,20 @@ void sinkhorn_sparse_newton_internal(
 
         // Compute search direction
         const double shift = std::min(gnorm, shift_max);
-        TimePoint clock_s1 = Clock::now();
         lin_sol.solve(direc, H, -g, shift);
-        TimePoint clock_s2 = Clock::now();
+        timer_inner.toc("lin_solve");
 
         // Armijo Line Search
         alpha = prob.line_search_wolfe(
             std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
         );
         gamma.noalias() += alpha * direc;
-        TimePoint clock_s3 = Clock::now();
+        timer_inner.toc("line_search");
 
         // Get the new f, g, H
         // T has been computed in line search
         f = prob.dual_obj_grad(gamma, g, T, false);
-        TimePoint clock_s4 = Clock::now();
+        timer_inner.toc("grad");
         // Adjust density according to gnorm change
         const double gnorm_pre = gnorm;
         gnorm = g.norm();
@@ -127,25 +122,24 @@ void sinkhorn_sparse_newton_internal(
         density = std::min(density_max, std::max(density_min, density));
         // Compute H
         prob.dual_sparsified_hess_with_density(T, g, density, H);
-        TimePoint clock_s5 = Clock::now();
+        timer_inner.toc("hess");
 
         if (verbose >= 2)
         {
             cout << "[timing]---------------------------------------------------" << std::endl;
-            cout << "║ lin_solve = " << (clock_s2 - clock_s1).count() <<
-                ", line_search = " << (clock_s3 - clock_s2).count() << std::endl;
-            cout << "║ grad = " << (clock_s4 - clock_s3).count() <<
-                ", hess = " << (clock_s5 - clock_s4).count() << std::endl;
+            cout << "║ lin_solve = " << timer_inner["lin_solve"] <<
+                ", line_search = " << timer_inner["line_search"] << std::endl;
+            cout << "║ grad = " << timer_inner["grad"] <<
+                ", hess = " << timer_inner["hess"] << std::endl;
             cout << "===========================================================" << std::endl << std::endl;
         }
 
         // Record timing
-        clock_t2 = Clock::now();
+        duration = timer.toc("iter");
 
         // Collect progress statistics
         obj_vals.push_back(f);
         mar_errs.push_back(gnorm);
-        double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
     }
 

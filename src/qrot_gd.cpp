@@ -1,7 +1,7 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
+#include "timer.h"
 #include "qrot_hess.h"
 #include "qrot_problem.h"
 #include "qrot_result.h"
@@ -11,11 +11,6 @@ namespace QROT {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 void qrot_gd_internal(
     QROTResult& result,
@@ -55,20 +50,21 @@ void qrot_gd_internal(
     }
 
     // Start timing
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
     // Initial objective function and gradient
     Vector grad;
     double f = prob.dual_obj_grad(gamma, grad);
     double gnorm = grad.norm();
     // Record timing
-    TimePoint clock_t2 = Clock::now();
+    double duration = timer.toc("iter");
 
     // Collect progress statistics
     double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
     prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm / reg);
-    run_times.push_back((clock_t2 - clock_t1).count());
+    run_times.push_back(duration);
 
     int i;
     for (i = 0; i < max_iter; i++)
@@ -80,7 +76,7 @@ void qrot_gd_internal(
         }
 
         // Start timing
-        clock_t1 = Clock::now();
+        timer.tic();
 
         // Convergence test
         if (gnorm < tol)
@@ -103,14 +99,13 @@ void qrot_gd_internal(
         f = prob.dual_obj_grad(gamma, grad);
         gnorm = grad.norm();
         // Record timing
-        clock_t2 = Clock::now();
+        duration = timer.toc("iter");
 
         // Collect progress statistics
         prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
         prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm / reg);
-        double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
     }
 

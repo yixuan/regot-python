@@ -1,7 +1,7 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
+#include "timer.h"
 #include "sinkhorn_problem.h"
 #include "sinkhorn_result.h"
 #include "sinkhorn_solvers.h"
@@ -10,11 +10,6 @@ namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 void sinkhorn_bcd_internal(
     SinkhornResult& result,
@@ -49,21 +44,22 @@ void sinkhorn_bcd_internal(
     }
 
     // Start timing
-    TimePoint clock_t1 = Clock::now();
+    Timer timer, timer_inner;
+    timer.tic();
     // Initial objective function and gradient
     gamma.head(n).array() = alpha.array() + beta[m - 1];
     gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
     double f = prob.dual_obj_grad(gamma, grad);
     double gnorm = grad.norm();
     // Record timing
-    TimePoint clock_t2 = Clock::now();
+    double duration = timer.toc("iter");
 
     // Collect progress statistics
     // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
     // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
-    run_times.push_back((clock_t2 - clock_t1).count());
+    run_times.push_back(duration);
 
     int i;
     for (i = 0; i < max_iter; i++)
@@ -75,7 +71,8 @@ void sinkhorn_bcd_internal(
         }
 
         // Start timing
-        clock_t1 = Clock::now();
+        timer.tic();
+        timer_inner.tic();
 
         // Convergence test
         if (gnorm < tol)
@@ -83,13 +80,11 @@ void sinkhorn_bcd_internal(
 
         // Optimal alpha given beta
         prob.optimal_alpha(beta, alpha);
-
-        TimePoint clock_s1 = Clock::now();
+        timer_inner.toc("alpha");
 
         // Optimal beta given alpha
         prob.optimal_beta(alpha, beta);
-
-        TimePoint clock_s2 = Clock::now();
+        timer_inner.toc("beta");
 
         gamma.head(n).array() = alpha.array() + beta[m - 1];
         gamma.tail(m - 1).array() = beta.head(m - 1).array() - beta[m - 1];
@@ -98,14 +93,15 @@ void sinkhorn_bcd_internal(
         f = prob.dual_obj_grad(gamma, grad);
         gnorm = grad.norm();
         // Record timing
-        clock_t2 = Clock::now();
+        timer_inner.toc("grad");
+        duration = timer.toc("iter");
 
         if (verbose >= 2)
         {
             cout << "[timing]=================================================" << std::endl;
-            cout << "║ alpha = " << (clock_s1 - clock_t1).count() <<
-                ", beta = " << (clock_s2 - clock_s1).count() <<
-                ", grad = " << (clock_t2 - clock_s2).count() << std::endl;
+            cout << "║ alpha = " << timer_inner["alpha"] <<
+                ", beta = " << timer_inner["beta"] <<
+                ", grad = " << timer_inner["grad"] << std::endl;
             cout << "=========================================================" << std::endl << std::endl;
         }
 
@@ -114,7 +110,6 @@ void sinkhorn_bcd_internal(
         obj_vals.push_back(f);
         // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
-        double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
     }
 

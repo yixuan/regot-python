@@ -1,8 +1,8 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
 #include <LBFGS.h>
+#include "timer.h"
 #include "qrot_problem.h"
 #include "qrot_result.h"
 #include "qrot_solvers.h"
@@ -11,11 +11,6 @@ namespace QROT {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 using LBFGSpp::LBFGSParam;
 using LBFGSpp::LBFGSSolver;
@@ -26,8 +21,7 @@ private:
     const Problem& m_prob;
     int            m_iter;
     double         m_last_obj_val;
-    TimePoint      m_clock_t1;
-    TimePoint      m_clock_t2;
+    Timer          m_timer;
     QROTResult&    m_result;
     int            m_verbose;
     std::ostream&  m_cout;
@@ -51,7 +45,7 @@ public:
         m_result.run_times.clear();
         m_result.run_times.reserve(1000);
 
-        m_clock_t1 = Clock::now();
+        m_timer.tic();
     }
 
     void set_verbose(int verbose) { m_verbose = verbose; }
@@ -64,14 +58,13 @@ public:
 
     void iterate(const Vector& gamma, const LBFGSSolver<double>& solver)
     {
-        m_clock_t2 = Clock::now();
+        double duration = m_timer.toc("iter");
 
         double prim_val = m_prob.primal_val(gamma);
         m_result.obj_vals.push_back(m_last_obj_val);
         m_result.prim_vals.push_back(prim_val);
         m_result.mar_errs.push_back(solver.final_grad_norm() / m_prob.reg());
         double current = m_result.run_times.empty() ? 0.0 : m_result.run_times.back();
-        double duration = (m_clock_t2 - m_clock_t1).count();
         m_result.run_times.push_back(current + duration);
 
         if (m_verbose >= 1)
@@ -81,7 +74,7 @@ public:
         }
 
         m_iter++;
-        m_clock_t1 = Clock::now();
+        m_timer.tic();
     }
 };
 

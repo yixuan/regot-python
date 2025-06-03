@@ -1,4 +1,4 @@
-#include <chrono>
+#include "timer.h"
 #include "sinkhorn_linsolve.h"
 #include "sinkhorn_cg.h"
 // #include <unsupported/Eigen/SparseExtra>
@@ -11,13 +11,6 @@ namespace Sinkhorn {
 using Matrix = Eigen::MatrixXd;
 using Vector = Eigen::VectorXd;
 using SpMat = Eigen::SparseMatrix<double>;
-
-#ifdef TIMING
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
-#endif
 
 // (Hs + lam * I)^{-1} * rhs, Hl = Hs + lam * I
 // Method: 0 - CG
@@ -33,7 +26,8 @@ void direct_solver(
 )
 {
 #ifdef TIMING
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
 #endif
 
     // This is typically one of the most time-consuming parts
@@ -41,22 +35,22 @@ void direct_solver(
         solver.analyzePattern(Hl);
 
 #ifdef TIMING
-    TimePoint clock_t2 = Clock::now();
+    timer.toc("analyze");
 #endif
 
     solver.factorize(Hl);
 
 #ifdef TIMING
-    TimePoint clock_t3 = Clock::now();
+    timer.toc("factorize");
 #endif
 
     res.noalias() = solver.solve(rhs);
 
 #ifdef TIMING
-    TimePoint clock_t4 = Clock::now();
-    std::cout << "analyze = " << (clock_t2 - clock_t1).count() <<
-        ", factorize = " << (clock_t3 - clock_t2).count() <<
-        ", solve = " << (clock_t4 - clock_t3).count() << std::endl;
+    timer.toc("solve");
+    std::cout << "analyze = " << timer["analyze"] <<
+        ", factorize = " << timer["factorize"] <<
+        ", solve = " << timer["solve"] << std::endl;
     std::cout << "==========================================================" << std::endl;
 #endif
 }
@@ -82,15 +76,16 @@ void SinkhornLinearSolver::solve(
         bool only_lower = (this->method != 3);
 
 #ifdef TIMING
-        TimePoint clock_t1 = Clock::now();
+        Timer timer;
+        timer.tic();
 #endif
 
         SpMat Hl = hess.to_spmat(only_lower) + shift * I;
 
 #ifdef TIMING
-        TimePoint clock_t2 = Clock::now();
+        double duration = timer.toc("to_sparse");
         std::cout << "[linsolve]================================================" << std::endl;
-        std::cout << "to_sparse = " << (clock_t2 - clock_t1).count() << std::endl;
+        std::cout << "to_sparse = " << duration << std::endl;
         // Eigen::saveMarket(Hl, "mat.mtx");
 #endif
 
@@ -171,7 +166,8 @@ void SinkhornLinearSolver::solve_low_rank(
 )
 {
 #ifdef TIMING
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
 #endif
 
     res.resizeLike(rhs);
@@ -185,7 +181,7 @@ void SinkhornLinearSolver::solve_low_rank(
     SpMat A = hess.to_spmat(only_lower) + shift * I;
 
 #ifdef TIMING
-    TimePoint clock_t2 = Clock::now();
+    timer.toc("to_sparse");
 #endif
 
     // Construct LDLT Solver
@@ -195,13 +191,13 @@ void SinkhornLinearSolver::solve_low_rank(
         solver.analyzePattern(A);
 
 #ifdef TIMING
-    TimePoint clock_t3 = Clock::now();
+    timer.toc("analyze");
 #endif
 
     solver.factorize(A);
 
 #ifdef TIMING
-    TimePoint clock_t4 = Clock::now();
+    timer.toc("factorize");
 #endif
 
     // Solve the sparse linear system
@@ -220,11 +216,11 @@ void SinkhornLinearSolver::solve_low_rank(
     // res.noalias() = invA_rhs - (yinvAr / yinvAy) * invA_y + rs_ys * s;
 
 #ifdef TIMING
-    TimePoint clock_t5 = Clock::now();
-    cout << "t2 - t1 = " << (clock_t2 - clock_t1).count() <<
-        ", t3 - t2 = " << (clock_t3 - clock_t2).count() <<
-        ", t4 - t3 = " << (clock_t4 - clock_t3).count() <<
-        ", t5 - t4 = " << (clock_t5 - clock_t4).count() << std::endl;
+    timer.toc("solve");
+    cout << "to_sparse = " << timer["to_sparse"] <<
+        ", analyze = " << timer["analyze"] <<
+        ", factorize = " << timer["factorize"] <<
+        ", solve = " << timer["solve"] << std::endl;
 #endif
 }
 

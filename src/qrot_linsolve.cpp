@@ -1,15 +1,14 @@
-// #include <chrono>
+#include "timer.h"
 #include "qrot_linsolve.h"
 #include "qrot_cg.h"
+
+// Whether to print detailed timing information
+// #define TIMING 1
 
 namespace QROT {
 
 using Vector = Eigen::VectorXd;
 using SpMat = Eigen::SparseMatrix<double>;
-// // https://stackoverflow.com/a/34781413
-// using Clock = std::chrono::high_resolution_clock;
-// using Duration = std::chrono::duration<double, std::milli>;
-// using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 // (H + lam * I + tau * K)^{-1} * rhs
 // Method: 0 - CG
@@ -29,18 +28,34 @@ void direct_solver(
     const int n, const int m
 )
 {
-    // TimePoint clock_t1 = Clock::now();
+#ifdef TIMING
+    Timer timer;
+    timer.tic();
+#endif
+
     // This is typically the most time-consuming part
     if (analyze_sparsity)
         solver.analyzePattern(Hs);
-    // TimePoint clock_t2 = Clock::now();
+
+#ifdef TIMING
+    timer.toc("analyze");
+#endif
+
     solver.factorize(Hs);
-    // TimePoint clock_t3 = Clock::now();
+
+#ifdef TIMING
+    timer.toc("factorize");
+#endif
+
     res.noalias() = solver.solve(rhs);
-    // TimePoint clock_t4 = Clock::now();
-    // std::cout << "t2 - t1 = " << (clock_t2 - clock_t1).count() <<
-    //     ", t3 - t2 = " << (clock_t3 - clock_t2).count() <<
-    //     ", t4 - t3 = " << (clock_t4 - clock_t3).count() << std::endl;
+
+#ifdef TIMING
+    timer.toc("solve");
+    std::cout << "analyze = " << timer["analyze"] <<
+        ", factorize = " << timer["factorize"] <<
+        ", solve = " << timer["solve"] << std::endl;
+    std::cout << "==========================================================" << std::endl;
+#endif
 
     if (tau > 0.0)
     {

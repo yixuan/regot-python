@@ -1,6 +1,7 @@
 #include <iostream>
 #include <numeric>  // std::accumulate
 #include <chrono>
+#include "timer.h"
 #include "sinkhorn_sparsify.h"
 
 // Fast sorting functions
@@ -23,13 +24,6 @@ using SpMat = Eigen::SparseMatrix<double>;
 
 using Scalar = double;
 using Index = int;
-
-#ifdef TIMING
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
-#endif
 
 // 1. First do nth_element() partition such that x is reordered and
 //    x_0, ..., x_{k-1} <= any element in [x_k, ..., x_{n-1}]
@@ -282,7 +276,8 @@ inline void apply_thresh_mask(
 SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
 {
 #ifdef TIMING
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
 #endif
 
     // Dimensions
@@ -294,7 +289,7 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
     Delta.col(m - 1).setZero();
 
 #ifdef TIMING
-    TimePoint clock_t2 = Clock::now();
+    timer.toc("mem_copy");
 #endif
 
     #pragma omp parallel for schedule(dynamic)
@@ -324,7 +319,7 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
     }
 
 #ifdef TIMING
-    TimePoint clock_t3 = Clock::now();
+    timer.toc("col_sp");
 #endif
 
     // Thresholding Delta by rows
@@ -332,7 +327,7 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
     // Vector rowsum = Delta.rowwise().sum();
 
 #ifdef TIMING
-    TimePoint clock_t4 = Clock::now();
+    timer.toc("row_sum");
 #endif
 
     #pragma omp parallel for schedule(dynamic)
@@ -358,7 +353,7 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
     }
 
 #ifdef TIMING
-    TimePoint clock_t5 = Clock::now();
+    timer.toc("row_sp");
 #endif
 
     // Generate sparse matrix
@@ -393,13 +388,13 @@ SpMat sparsify_mat3(const Matrix& T, double delta, double density_hint)
         n, m - 1, value.size(), outer_ind.data(), inner_ind.data(), value.data());
 
 #ifdef TIMING
-    TimePoint clock_t6 = Clock::now();
+    timer.toc("sp_mat");
     std::cout << "[sparsify]================================================" << std::endl;
-    std::cout << "mem_copy = " << (clock_t2 - clock_t1).count() <<
-        ", row_sum = " << (clock_t4 - clock_t3).count() << std::endl;
-    std::cout << "col_sp = " << (clock_t3 - clock_t2).count() <<
-        ", row_sp = " << (clock_t5 - clock_t4).count() <<
-        ", sp_mat = " << (clock_t6 - clock_t5).count() << std::endl;
+    std::cout << "mem_copy = " << timer["mem_copy"] <<
+        ", row_sum = " << timer["row_sum"] << std::endl;
+    std::cout << "col_sp = " << timer["col_sp"] <<
+        ", row_sp = " << timer["row_sp"] <<
+        ", sp_mat = " << timer["sp_mat"] << std::endl;
     std::cout << "==========================================================" << std::endl;
 #endif
 

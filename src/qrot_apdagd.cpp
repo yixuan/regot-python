@@ -1,7 +1,7 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
+#include "timer.h"
 #include "qrot_problem.h"
 #include "qrot_result.h"
 #include "qrot_solvers.h"
@@ -10,11 +10,6 @@ namespace QROT {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 void qrot_apdagd_internal(
     QROTResult& result,
@@ -60,26 +55,27 @@ void qrot_apdagd_internal(
     result.get_plan(gamma, prob);
 
     // Start timing
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
     // Initial objective function and gradient
     double f = prob.dual_obj_grad(gamma, grad);
     double gnorm = grad.norm();
     // Record timing
-    TimePoint clock_t2 = Clock::now();
+    double duration = timer.toc("iter");
 
     // Collect progress statistics
     double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
     prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm / reg);
-    run_times.push_back((clock_t2 - clock_t1).count());
+    run_times.push_back(duration);
 
     int i;
     double L = L0, pbeta = 0.0;
     for (i = 0; i < max_iter; i++)
     {
         // Start timing
-        clock_t1 = Clock::now();
+        timer.tic();
 
         // Line search
         if (verbose >= 2)
@@ -152,14 +148,13 @@ void qrot_apdagd_internal(
         const double mar_err = std::sqrt(resid_a.squaredNorm() + resid_b.squaredNorm());
 
         // Record timing
-        clock_t2 = Clock::now();
+        duration = timer.toc("iter");
 
         // Collect progress statistics
         prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
         prim_vals.push_back(prim_val);
         mar_errs.push_back(mar_err);
-        double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
 
         if (verbose >= 1)

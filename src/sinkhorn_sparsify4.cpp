@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <numeric>  // std::accumulate, std::iota
-#include <chrono>
+#include "timer.h"
 #include "sinkhorn_sparsify.h"
 
 // Fast sorting functions
@@ -26,13 +26,6 @@ using Tri = Eigen::Triplet<double>;
 using Scalar = double;
 using Index = std::size_t;
 using IndVec = Eigen::Matrix<Index, Eigen::Dynamic, 1>;
-
-#ifdef TIMING
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
-#endif
 
 // Sparsify with given density, and remove the last column
 // Previous implementation
@@ -84,7 +77,8 @@ inline void arg_select(const Scalar* x, Index* I, Index n, Index k)
 SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
 {
 #ifdef TIMING
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
 #endif
 
     // Dimensions
@@ -103,7 +97,7 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
     Index k = Index(ind_len * density);
 
 #ifdef TIMING
-    TimePoint clock_t2 = Clock::now();
+    timer.toc("index");
 #endif
 
     // Note that arg_select() partially sorts data in increasing order
@@ -111,7 +105,7 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
     arg_select(T.data(), ind.data(), ind_len, ind_len - k);
 
 #ifdef TIMING
-    TimePoint clock_t3 = Clock::now();
+    timer.toc("topk");
 #endif
 
     // Now the last k elements in ind contains the indices of the
@@ -159,7 +153,7 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
     }
 
 #ifdef TIMING
-    TimePoint clock_t4 = Clock::now();
+    timer.toc("tri_list");
 #endif
 
     SpMat sp(n, m - 1);
@@ -167,12 +161,12 @@ SpMat sparsify_mat_with_density(const Matrix& T, double density, bool preserve)
     sp.makeCompressed();
 
 #ifdef TIMING
-    TimePoint clock_t5 = Clock::now();
+    timer.toc("sp_mat");
     std::cout << "[sparsify]================================================" << std::endl;
-    std::cout << "index = " << (clock_t2 - clock_t1).count() <<
-        ", topk = " << (clock_t3 - clock_t2).count() << std::endl;
-    std::cout << "tri_list = " << (clock_t4 - clock_t3).count() <<
-        ", sp_mat = " << (clock_t5 - clock_t4).count() << std::endl;
+    std::cout << "index = " << timer["index"] <<
+        ", topk = " << timer["topk"] << std::endl;
+    std::cout << "tri_list = " << timer["tri_list"] <<
+        ", sp_mat = " << timer["sp_mat"] << std::endl;
     std::cout << "==========================================================" << std::endl;
 #endif
 

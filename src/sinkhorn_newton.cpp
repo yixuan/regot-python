@@ -1,8 +1,8 @@
-#include <chrono>
 #include <vector>
 #include <iostream>
 #include <Eigen/Core>
 #include <Eigen/Cholesky>
+#include "timer.h"
 #include "sinkhorn_hess.h"
 #include "sinkhorn_linsolve.h"
 #include "sinkhorn_problem.h"
@@ -13,11 +13,6 @@ namespace Sinkhorn {
 
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
-
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
 
 void sinkhorn_newton_internal(
     SinkhornResult& result,
@@ -57,7 +52,8 @@ void sinkhorn_newton_internal(
     }
 
     // Start timing
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
     // Initial objective function value, gradient, and Hessian
     double f;
     Vector g;
@@ -65,14 +61,14 @@ void sinkhorn_newton_internal(
     prob.dual_obj_grad_densehess(gamma, f, g, H);
     double gnorm = g.norm();
     // Record timing
-    TimePoint clock_t2 = Clock::now();
+    double duration = timer.toc("iter");
 
     // Collect progress statistics
     // double prim_val = prob.primal_val(gamma);
     obj_vals.push_back(f);
     // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
-    run_times.push_back((clock_t2 - clock_t1).count());
+    run_times.push_back(duration);
 
     int i;
     for (i = 0; i < max_iter; i++)
@@ -84,7 +80,7 @@ void sinkhorn_newton_internal(
         }
 
         // Start timing
-        clock_t1 = Clock::now();
+        timer.tic();
 
         // Convergence test
         // Also exit if objective function value is not finite
@@ -112,14 +108,13 @@ void sinkhorn_newton_internal(
         prob.dual_obj_grad_densehess(gamma, f, g, H);
         gnorm = g.norm();
         // Record timing
-        clock_t2 = Clock::now();
+        duration = timer.toc("iter");
 
         // Collect progress statistics
         // prim_val = prob.primal_val(gamma);
         obj_vals.push_back(f);
         // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
-        double duration = (clock_t2 - clock_t1).count();
         run_times.push_back(run_times.back() + duration);
     }
 

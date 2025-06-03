@@ -1,6 +1,6 @@
 #include <iostream>
 #include <vector>
-#include <chrono>
+#include "timer.h"
 #include "sinkhorn_sparsify.h"
 
 // Whether to print detailed timing information
@@ -12,13 +12,6 @@ using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 using SpMat = Eigen::SparseMatrix<double>;
 using Tri = Eigen::Triplet<double>;
-
-#ifdef TIMING
-// https://stackoverflow.com/a/34781413
-using Clock = std::chrono::high_resolution_clock;
-using Duration = std::chrono::duration<double, std::milli>;
-using TimePoint = std::chrono::time_point<Clock, Duration>;
-#endif
 
 using Scalar = double;
 using Index = int;
@@ -235,7 +228,8 @@ Index find_large(Data* x, Index n, Scalar target)
 SpMat sparsify_mat2(const Matrix& T, double delta, double density_hint)
 {
 #ifdef TIMING
-    TimePoint clock_t1 = Clock::now();
+    Timer timer;
+    timer.tic();
 #endif
 
     // Dimensions
@@ -256,7 +250,7 @@ SpMat sparsify_mat2(const Matrix& T, double delta, double density_hint)
     }
 
 #ifdef TIMING
-    TimePoint clock_t2 = Clock::now();
+    timer.toc("coo");
 #endif
 
     // Vector to store the partition index L
@@ -281,7 +275,7 @@ SpMat sparsify_mat2(const Matrix& T, double delta, double density_hint)
     }
 
 #ifdef TIMING
-    TimePoint clock_t3 = Clock::now();
+    timer.toc("part_index");
 #endif
 
     // Vector of small values by row
@@ -313,7 +307,7 @@ SpMat sparsify_mat2(const Matrix& T, double delta, double density_hint)
     T_tri.clear();
 
 #ifdef TIMING
-    TimePoint clock_t4 = Clock::now();
+    timer.toc("tri_list");
 #endif
 
     // Find large elements in the small value vector
@@ -345,19 +339,19 @@ SpMat sparsify_mat2(const Matrix& T, double delta, double density_hint)
     }
 
 #ifdef TIMING
-    TimePoint clock_t5 = Clock::now();
+    timer.toc("row_sp");
 #endif
 
     SpMat sp(n, m - 1);
     sp.setFromTriplets(tri_list.begin(), tri_list.end());
 
 #ifdef TIMING
-    TimePoint clock_t6 = Clock::now();
-    std::cout << "t2 - t1 = " << (clock_t2 - clock_t1).count() <<
-        ", t3 - t2 = " << (clock_t3 - clock_t2).count() <<
-        ", t4 - t3 = " << (clock_t4 - clock_t3).count() << std::endl;
-    std::cout << "t5 - t4 = " << (clock_t5 - clock_t4).count() <<
-        ", t6 - t5 = " << (clock_t6 - clock_t5).count() << std::endl;
+    timer.toc("to_sparse");
+    std::cout << "coo = " << timer["coo"] <<
+        ", part_index = " << timer["part_index"] <<
+        ", tri_list = " << timer["tri_list"] << std::endl;
+    std::cout << "row_sp = " << timer["row_sp"] <<
+        ", to_sparse = " << timer["to_sparse"] << std::endl;
 #endif
 
     // Matrix D = T.leftCols(m - 1) - sp;
