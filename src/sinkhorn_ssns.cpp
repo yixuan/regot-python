@@ -25,8 +25,8 @@ void sinkhorn_ssns_internal(
     const int m = M.cols();
 
     // Solver options
-    int method = opts.method;
-    double mu0 = opts.mu0;
+    const int method = opts.method;
+    const double mu0 = opts.mu0;
 
     // Algorithmic parameters
     constexpr double rho_t1 = 0.25, rho_t2 = 0.75,
@@ -47,7 +47,7 @@ void sinkhorn_ssns_internal(
     std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
-    std::vector<double> density;
+    std::vector<double> densities;
 
     // Initial value
     if (opts.x0.size() == gamma.size())
@@ -88,7 +88,7 @@ void sinkhorn_ssns_internal(
     // prim_vals.push_back(prim_val);
     mar_errs.push_back(gnorm);
     run_times.push_back(duration);
-    density.push_back(H.density());
+    densities.push_back(H.density());
 
     int i;
     std::vector<double> alphas{1.0, 0.5, 0.25, 0.1};
@@ -219,7 +219,7 @@ void sinkhorn_ssns_internal(
         // prim_vals.push_back(prim_val);
         mar_errs.push_back(gnorm);
         run_times.push_back(run_times.back() + duration);
-        density.push_back(H.density());
+        densities.push_back(H.density());
     }
 
     // Save results
@@ -230,7 +230,7 @@ void sinkhorn_ssns_internal(
     // result.prim_vals.swap(prim_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
-    result.density.swap(density);
+    result.densities.swap(densities);
 }
 
 }  // namespace Sinkhorn

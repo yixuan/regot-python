@@ -25,7 +25,7 @@ struct SinkhornResult
     std::vector<double> prim_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
-    std::vector<double> density;
+    std::vector<double> densities;
 
     // Recover the transport plan given the dual variables
     inline void get_plan(const Vector& gamma, const Problem& prob)
