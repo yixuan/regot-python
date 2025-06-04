@@ -13,19 +13,27 @@ using RefConstMat = Eigen::Ref<const Eigen::MatrixXd>;
 // Extra options that may be used by the solvers
 struct SinkhornSolverOpts
 {
-    // Initial value
+    // Initial value for the dual variables
+    // A vector of length (n + m - 1)
     Eigen::VectorXd x0;
-    // Method for solving linear systems
+
+    // Method for solving sparse linear systems
+    // 0 - CG
+    // 1 - SimplicialLDLT
+    // 2 - SimplicialLLT
+    // 3 - SparseLU
     int method;
+
     // Parameter for SSNS
     double mu0;
-    // Parameter for sparse Newton
+
+    // Parameter for sparse Newton and SPLR
     double shift;
     double density;
 
     // Setting default values
     SinkhornSolverOpts():
-        x0(0), method(0), mu0(1.0), shift(1e-6), density(0.01)
+        x0(0), method(1), mu0(1.0), shift(1e-6), density(0.01)
     {}
 };
 
@@ -69,7 +77,7 @@ void sinkhorn_sparse_newton_internal(
     std::ostream& cout = std::cout
 );
 
-void sinkhorn_splr_internal(
+void sinkhorn_ssns_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
@@ -77,7 +85,7 @@ void sinkhorn_splr_internal(
     std::ostream& cout = std::cout
 );
 
-void sinkhorn_ssns_internal(
+void sinkhorn_splr_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     const SinkhornSolverOpts& opts,
