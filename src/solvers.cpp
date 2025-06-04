@@ -208,7 +208,7 @@ inline void parse_sinkhorn_opts(
     {
         solver_opts.mu0 = py::float_(kwargs["mu0"]);
     }
-    // Used in sparse Newton
+    // Used in sparse Newton and SPLR
     if (kwargs.contains("shift"))
     {
         solver_opts.shift = py::float_(kwargs["shift"]);
@@ -301,24 +301,6 @@ SinkhornResult sinkhorn_sparse_newton(
     return result;
 }
 
-SinkhornResult sinkhorn_splr(
-    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol, int max_iter, int verbose, const py::kwargs &kwargs
-)
-{
-    SinkhornResult result;
-    SinkhornSolverOpts solver_opts;
-    // Use LDLT as default
-    solver_opts.method = 1;
-    parse_sinkhorn_opts(solver_opts, kwargs);
-
-    Sinkhorn::sinkhorn_splr_internal(
-        result, M, a, b, reg, solver_opts, tol, max_iter,
-        verbose, std::cout);
-
-    return result;
-}
-
 SinkhornResult sinkhorn_ssns(
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
     double tol, int max_iter, int verbose, const py::kwargs &kwargs
@@ -331,6 +313,24 @@ SinkhornResult sinkhorn_ssns(
     parse_sinkhorn_opts(solver_opts, kwargs);
 
     Sinkhorn::sinkhorn_ssns_internal(
+        result, M, a, b, reg, solver_opts, tol, max_iter,
+        verbose, std::cout);
+
+    return result;
+}
+
+SinkhornResult sinkhorn_splr(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    SinkhornResult result;
+    SinkhornSolverOpts solver_opts;
+    // Use LDLT as default
+    solver_opts.method = 1;
+    parse_sinkhorn_opts(solver_opts, kwargs);
+
+    Sinkhorn::sinkhorn_splr_internal(
         result, M, a, b, reg, solver_opts, tol, max_iter,
         verbose, std::cout);
 
@@ -387,10 +387,10 @@ PYBIND11_MODULE(_internal, m) {
     m.def("sinkhorn_sparse_newton", &sinkhorn_sparse_newton,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
-    m.def("sinkhorn_splr", &sinkhorn_splr,
+    m.def("sinkhorn_ssns", &sinkhorn_ssns,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
-    m.def("sinkhorn_ssns", &sinkhorn_ssns,
+    m.def("sinkhorn_splr", &sinkhorn_splr,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
 
@@ -414,9 +414,10 @@ PYBIND11_MODULE(_internal, m) {
         // .def_readwrite("prim_vals", &SinkhornResult::prim_vals)
         .def_readwrite("mar_errs", &SinkhornResult::mar_errs)
         .def_readwrite("run_times", &SinkhornResult::run_times)
-        .def_readwrite("density", &SinkhornResult::density);
+        .def_readwrite("densities", &SinkhornResult::densities);
 
     // https://hopstorawpointers.blogspot.com/2018/06/pybind11-and-python-sub-modules.html
     m.attr("__name__") = "regot._internal";
     m.doc() = "";
 }
+
