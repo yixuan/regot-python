@@ -13,6 +13,14 @@ namespace Sinkhorn {
 using Vector = Eigen::VectorXd;
 using Matrix = Eigen::MatrixXd;
 
+// Convert density of T to density of H
+inline double density_T2H(double denT, int n, int m)
+{
+    const double nnz = 2.0 * denT * n * (m - 1) + n + m - 1;
+    const double denH = nnz / double(n + m - 1) / double(n + m - 1);
+    return denH;
+}
+
 void sinkhorn_sparse_newton_internal(
     SinkhornResult& result,
     RefConstMat M, RefConstVec a, RefConstVec b, double reg,
@@ -29,18 +37,19 @@ void sinkhorn_sparse_newton_internal(
         density_min = 0.01 * opts.density;
     double density = 0.1 * density_max;
     const double shift_max = opts.shift;
-    int method = opts.method;
+    const int method = opts.method;
     constexpr double cg_tol = 1e-8;
 
     // Dual variables and intermediate variables
     Problem prob(M, a, b, reg);
     Vector gamma(n + m - 1), newgamma(n + m - 1), direc(n + m - 1);
-    double gnorm;
+    double gnorm, gnorm_init;
 
     // Progress statistics
     std::vector<double> obj_vals;
     std::vector<double> mar_errs;
     std::vector<double> run_times;
+    std::vector<double> densities;
 
     // Initial value
     if (opts.x0.size() == gamma.size())
@@ -70,6 +79,8 @@ void sinkhorn_sparse_newton_internal(
     Matrix T(n, m);
     f = prob.dual_obj_grad(gamma, g, T, true); // compute f, g, T
     gnorm = g.norm();
+    gnorm_init = gnorm;
+    // Compute H
     prob.dual_sparsified_hess_with_density(T, g, density, H);
     // Record timing
     double duration = timer.toc("iter");
@@ -78,6 +89,7 @@ void sinkhorn_sparse_newton_internal(
     obj_vals.push_back(f);
     mar_errs.push_back(gnorm);
     run_times.push_back(duration);
+    densities.push_back(density_T2H(density, n, m));
 
     int i;
     // Initial step size
@@ -104,10 +116,11 @@ void sinkhorn_sparse_newton_internal(
         lin_sol.solve(direc, H, -g, shift);
         timer_inner.toc("lin_solve");
 
-        // Armijo Line Search
+        // Wolfe Line Search
         alpha = prob.line_search_wolfe(
             std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
         );
+        // Update gamma
         gamma.noalias() += alpha * direc;
         timer_inner.toc("line_search");
 
@@ -118,7 +131,8 @@ void sinkhorn_sparse_newton_internal(
         // Adjust density according to gnorm change
         const double gnorm_pre = gnorm;
         gnorm = g.norm();
-        density *= (gnorm < gnorm_pre) ? 0.9 : 2.0;
+        const bool bad_move = (gnorm_pre < gnorm_init) && (gnorm > 1.1 * gnorm_pre);
+        density *= (bad_move ? 2.0 : 0.9);
         density = std::min(density_max, std::max(density_min, density));
         // Compute H
         prob.dual_sparsified_hess_with_density(T, g, density, H);
@@ -141,6 +155,7 @@ void sinkhorn_sparse_newton_internal(
         obj_vals.push_back(f);
         mar_errs.push_back(gnorm);
         run_times.push_back(run_times.back() + duration);
+        densities.push_back(density_T2H(density, n, m));
     }
 
     // Save results
@@ -150,6 +165,7 @@ void sinkhorn_sparse_newton_internal(
     result.obj_vals.swap(obj_vals);
     result.mar_errs.swap(mar_errs);
     result.run_times.swap(run_times);
+    result.densities.swap(densities);
 }
 
 }  // namespace Sinkhorn
