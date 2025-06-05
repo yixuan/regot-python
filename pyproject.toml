@@ -1,9 +1,10 @@
 [project]
 name = "regot"
-version = "0.0.2"
+version = "0.0.3"
 description = "Regularized Optimal Transport"
 authors = [
-  {name = "Yixuan Qiu", email = "yixuanq@gmail.com"}
+  {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
+  {name = "Chenrui Wang", email = "iamwangchenrui@gmail.com"}
 ]
 maintainers = [
   {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
@@ -26,3 +27,4 @@ build-backend = "setuptools.build_meta"
 [tool.cibuildwheel]
 # Only build on CPython
 build = "cp*"
+

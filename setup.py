@@ -10,7 +10,7 @@ import requests
 from cpuinfo import get_cpu_info
 from setuptools import setup
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 # The main interface is through Pybind11Extension.
 # * You can add cxx_std=11/14/17, and then build_ext can be removed.
@@ -92,7 +92,7 @@ ext_modules = [
 setup(
     name="regot",
     version=__version__,
-    author="Yixuan Qiu",
+    author=["Yixuan Qiu", "Chenrui Wang"],
     author_email="yixuanq@gmail.com",
     url="https://github.com/yixuan/regot-python",
     description="Regularized Optimal Transport",
@@ -106,3 +106,4 @@ setup(
     zip_safe=False,
     python_requires=">=3.10",
 )
+

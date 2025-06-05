@@ -1,3 +1,11 @@
+## [0.0.3] - 2025-06-05
+
+### Added
+
+- Added `sinkhorn_sparse_newton` and `sinkhorn_splr` solvers.
+
+
+
 ## [0.0.2] - 2024-10-30
 
 ### Added
@@ -16,3 +24,4 @@
 ### Added
 
 - Initial release.
+
