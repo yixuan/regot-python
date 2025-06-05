@@ -45,7 +45,7 @@ Currently **RegOT** contains the following solvers for EROT (methods marked with
 - `sinkhorn_newton`: Newton's method applied to the dual problem of EROT.
 - 🌟`sinkhorn_sparse_newton`: Newton-type method using sparsified Hessian matrix, as described in [our SPLR paper](https://openreview.net/pdf?id=WCkMkMcqpb).
 - 🌟`sinkhorn_ssns`: the safe and sparse Newton method for Sinkhorn-type OT (SSNS, [link to paper](https://openreview.net/pdf?id=Nmmiyjw7Xg)).
-- 🌟`sinkhorn_splr`: the sparse-plus-low-rank quasi-Newton method for the dual problem of EROT (SPLR, [link to paper](https://openreview.net/forum?id=WCkMkMcqpb)).
+- 🌟`sinkhorn_splr`: the sparse-plus-low-rank quasi-Newton method for the dual problem of EROT (SPLR, [link to paper](https://openreview.net/pdf?id=WCkMkMcqpb)).
 
 The following solvers are available for the QROT problem:
 
