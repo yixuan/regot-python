@@ -156,8 +156,8 @@ void sinkhorn_splr_internal(
         // Adjust density according to gnorm change
         const double gnorm_pre = gnorm;
         gnorm = g.norm();
-        const bool bad_move = (gnorm_pre < gnorm_init) && (gnorm > 1.1 * gnorm_pre);
-        density *= (bad_move ? 2.0 : 0.9);
+        const bool bad_move = (gnorm_pre < gnorm_init) && (gnorm > gnorm_pre);
+        density *= (bad_move ? 1.1 : 0.99);
         density = std::min(density_max, std::max(density_min, density));
         // Compute H
         prob.dual_sparsified_hess_with_density(T, g, density, H);
