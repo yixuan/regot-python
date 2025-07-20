@@ -135,3 +135,26 @@ vis_plan(res2.plan, title="reg=0.01")
 ```
 
 <img src="figs/plan_reg0_1.png" width="45%" /> <img src="figs/plan_reg0_01.png" width="45%" />
+
+### 📃 Bibliography
+
+Please consider to cite our work if you find our algorithms or
+software useful in your research and applications.
+
+```bibtex
+@inproceedings{tang2024safe,
+  title={Safe and sparse Newton method for entropic-regularized optimal transport},
+  author={Tang, Zihao and Qiu, Yixuan},
+  booktitle={Advances in Neural Information Processing Systems},
+  volume={37},
+  pages={129914--129943},
+  year={2024}
+}
+
+@inproceedings{wang2025sparse,
+  title={The Sparse-Plus-Low-Rank quasi-Newton method for entropic-regularized optimal transport},
+  author={Wang, Chenrui and Qiu, Yixuan},
+  booktitle={Forty-second International Conference on Machine Learning},
+  year={2025}
+}
+```
