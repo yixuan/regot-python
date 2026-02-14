@@ -137,7 +137,7 @@ public:
         double init_step,
         const Vector& gamma, const Vector& direc,
         double curobj, const Vector& curgrad,
-        Matrix& T,
+        Matrix& T, bool& recompute_T,
         double c1 = 1e-4, double c2 = 0.9,
         int max_iter = 20, bool verbose = false,
         std::ostream& cout = std::cout

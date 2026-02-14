@@ -117,16 +117,17 @@ void sinkhorn_sparse_newton_internal(
         timer_inner.toc("lin_solve");
 
         // Wolfe Line Search
+        bool recompute_T = true;
         alpha = prob.line_search_wolfe(
-            std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T
+            std::min(1.0, 1.5 * alpha), gamma, direc, f, g, T, recompute_T
         );
         // Update gamma
         gamma.noalias() += alpha * direc;
         timer_inner.toc("line_search");
 
         // Get the new f, g, H
-        // T has been computed in line search
-        f = prob.dual_obj_grad(gamma, g, T, false);
+        // Typically, T has been computed in line search
+        f = prob.dual_obj_grad(gamma, g, T, recompute_T);
         timer_inner.toc("grad");
         // Adjust density according to gnorm change
         const double gnorm_pre = gnorm;
