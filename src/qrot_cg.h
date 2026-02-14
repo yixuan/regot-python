@@ -1,6 +1,7 @@
 #ifndef REGOT_QROT_CG_H
 #define REGOT_QROT_CG_H
 
+#include <cassert>
 #include <iostream>
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
