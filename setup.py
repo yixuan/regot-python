@@ -30,8 +30,8 @@ LBFGSPP_DIRECTORY = f"{SETUP_DIRECTORY}/src/LBFGSpp"
 # Download Eigen source files
 # Modified from https://github.com/tohtsky/irspack/blob/main/setup.py
 class get_eigen_include(object):
-    EIGEN3_URL = "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip"
-    EIGEN3_DIRNAME = "eigen-3.4.0"
+    EIGEN3_URL = "https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.zip"
+    EIGEN3_DIRNAME = "eigen-5.0.1"
 
     def __str__(self) -> str:
         # Test whether the environment variable EIGEN3_INCLUDE_DIR is set

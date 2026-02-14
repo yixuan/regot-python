@@ -21,10 +21,9 @@ Homepage = "https://github.com/yixuan/regot-python"
 Issues = "https://github.com/yixuan/regot-python/issues"
 
 [build-system]
-requires = ["requests ~= 2.31.0", "pybind11 ~= 2.13.0", "py-cpuinfo ~= 9.0.0", "setuptools >= 61.0"]
+requires = ["requests ~= 2.31.0", "pybind11 ~= 3.0.0", "py-cpuinfo ~= 9.0.0", "setuptools >= 80.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
 # Only build on CPython
 build = "cp*"
-
