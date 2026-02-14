@@ -1,4 +1,4 @@
-# RegOT-Python
+# RegOT-Python<img src="https://statr.me/images/sticker-regot.png" alt="showtext" height="150px" align="right" />
 
 **RegOT** is a collection of state-of-the-art solvers for
 regularized optimal transport (OT) problems, implemented in
