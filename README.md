@@ -58,6 +58,22 @@ The following solvers are available for the QROT problem:
 - `qrot_assn`: the adaptive semi-smooth Newton (ASSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1603.07870)).
 - `qrot_grssn`: the globalized and regularized semi-smooth Newton (GRSSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1903.01112)).
 
+Primal-dual interior-point QROT solver (unified API):
+
+- **`qrot_pdip`**: primal-dual interior-point method. Pass **`inner_solver="cg"`** for a CG-based linear solve, or **`inner_solver="fp"`** for the fixed-point / sparse-Cholesky inner path. Default is **`inner_solver="cg"`** (case-insensitive).
+  - For **`cg`**: default `tol=1e-8` for normalized primal/dual gaps and `mu`. When `cg_stop_gap_mu_only` is false (default), marginal-error stopping uses **`cg_mar_tol` (default `1e-10`)**, independent of `tol`. Pass `cg_mar_tol` in kwargs to override. Set `cg_stop_gap_mu_only=True` to require **only** gaps + `mu` (like the FP path).
+  - For **`fp`**: default `tol=1e-8`. By default, stopping uses only normalized primal/dual gaps and `mu` (`fp_stop_gap_mu_only=True`). Pass `fp_stop_gap_mu_only=False` if you also want to stop when marginal error `mar_err` falls below `tol`.
+- **`pdip_cg`** / **`pdip_fp`**: legacy aliases for `qrot_pdip` with `inner_solver="cg"` or `"fp"` respectively.
+
+They return an object with fields:
+
+- `niter`: number of outer iterations.
+- `converged`: whether the stopping criterion is met.
+- `plan`: transport plan.
+- `obj_vals`: primal objective history.
+- `mar_errs`: marginal error history, defined as `max(||T1-a||_2, ||T^T1-b||_2)`.
+- `run_times`: cumulative runtime history in milliseconds.
+
 ## 💽 Installation
 
 ### Using `pip`
@@ -75,6 +91,8 @@ A C++ compiler is needed to build **RegOT** from source. Enter the source direct
 ```bash
 pip install . -r requirements.txt
 ```
+
+Eigen headers are downloaded automatically on first build (or use `EIGEN3_INCLUDE_DIR`). The folders `eigen-5.0.1/` and `data/` are local build or dataset caches and should not be committed.
 
 ## 📗 Example
 
@@ -132,6 +150,15 @@ def vis_plan(T, title=""):
 
 vis_plan(res1.plan, title="reg=0.1")
 vis_plan(res2.plan, title="reg=0.01")
+```
+
+PDIP example (`qrot_pdip`):
+
+```py
+res3 = regot.qrot_pdip(M, a, b, reg, max_iter=2000, inner_solver="cg")  # default tol=1e-8, gap+μ stop
+res4 = regot.qrot_pdip(M, a, b, reg, max_iter=2000, inner_solver="fp")
+print(res3.niter, res3.mar_errs[-1], res3.converged)
+print(res4.niter, res4.mar_errs[-1], res4.converged)
 ```
 
 <img src="figs/plan_reg0_1.png" width="45%" /> <img src="figs/plan_reg0_01.png" width="45%" />
