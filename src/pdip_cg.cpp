@@ -6,6 +6,7 @@
  */
 #define NOMINMAX
 #include "pdip_solvers.h"
+#include "pdip_transport_ops.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
@@ -16,13 +17,14 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
-#ifdef _OPENMP
-#include <omp.h>
-#endif
 
 using namespace Eigen;
 
 namespace PDIP {
+
+using Vector = VectorXd;
+using RowVector = RowVectorXd;
+using MatRowMajor = transport::MatRowMajor;
 
 struct PdipTiming {
     double build_B = 0, B_compute = 0, build_A = 0, pcg1 = 0, pcg2 = 0, other = 0;
@@ -43,75 +45,34 @@ static const int STABILIZATION_WINDOW = 30;
 static const double STABILIZATION_MAX_RANGE = 0.1;
 static const int STABILIZATION_MIN_ITER = 30;
 
-static void A_matvec(int n, int m, const VectorXd& x, VectorXd& y) {
+static void A_matvec(int n, int m, const Vector& x, Vector& y) {
     y.setZero(m + n - 1);
-#pragma omp parallel for
-    for (int j = 0; j < m; ++j)
-        for (int i = 0; i < n; ++i)
-            y(j) += x(i * m + j);
-#pragma omp parallel for
-    for (int i = 0; i < n - 1; ++i)
-        for (int j = 0; j < m; ++j)
-            y(m + i) += x(i * m + j);
+    transport::A_matvec_from_x(n, m, x.data(), nullptr, y.data());
 }
 
-static void A_matvec_scaled(int n, int m, const VectorXd& scale, const VectorXd& x, VectorXd& y) {
+static void A_matvec_scaled(int n, int m, const Vector& scale, const Vector& x, Vector& y) {
     y.setZero(m + n - 1);
-#pragma omp parallel for
-    for (int j = 0; j < m; ++j)
-        for (int i = 0; i < n; ++i)
-            y(j) += scale(i * m + j) * x(i * m + j);
-#pragma omp parallel for
-    for (int i = 0; i < n - 1; ++i)
-        for (int j = 0; j < m; ++j)
-            y(m + i) += scale(i * m + j) * x(i * m + j);
+    transport::A_matvec_from_x(n, m, x.data(), scale.data(), y.data());
 }
 
-static void AT_matvec(int n, int m, const VectorXd& lambda, VectorXd& y) {
-#pragma omp parallel for
-    for (int i = 0; i < n; ++i) {
-        double lam_i = (i < n - 1 ? lambda(m + i) : 0.0);
-        for (int j = 0; j < m; ++j)
-            y(i * m + j) = lambda(j) + lam_i;
-    }
+static void AT_matvec(int n, int m, const Vector& lambda, Vector& y) {
+    transport::AT_matvec(n, m, lambda.data(), y.data());
 }
 
-static void solve_AAT(const VectorXd& rhs_in, int n_supp, int m_dem, VectorXd& out) {
-    double sum_d = rhs_in.head(m_dem).sum();
-    VectorXd tmp(n_supp - 1);
-    for (int i = 0; i < n_supp - 1; ++i)
-        tmp(i) = (sum_d / n_supp) - rhs_in(m_dem + i);
-    double sum_t = tmp.sum();
-    for (int i = 0; i < n_supp - 1; ++i)
-        out(m_dem + i) = (tmp(i) + sum_t) / m_dem;
-    double sum_x2 = out.tail(n_supp - 1).sum();
-    for (int j = 0; j < m_dem; ++j)
-        out(j) = (rhs_in(j) - sum_x2) / n_supp;
+static void solve_AAT(const Vector& rhs_in, int n_supp, int m_dem, Vector& out) {
+    transport::solve_AAT_vec(rhs_in, n_supp, m_dem, out);
 }
 
-static double step_size(const VectorXd& x, const VectorXd& dx) {
-    double alpha = 1.0;
-    for (Eigen::Index i = 0; i < x.size(); ++i) {
-        if (dx(i) < 0)
-            alpha = (std::min)(alpha, -x(i) / (dx(i) + SMALL));
-    }
-    return alpha;
+static double step_size(const Vector& x, const Vector& dx) {
+    ArrayXd cand = (dx.array() < 0).select(-x.array() / (dx.array() + SMALL), 1.0);
+    return (std::min)(1.0, cand.minCoeff());
 }
 
-static double compute_mar_err(int n, int m, const VectorXd& x, const VectorXd& eq_vector,
-                              VectorXd* row_sums, VectorXd* col_sums, VectorXd* a_marg) {
-    if (row_sums->size() != static_cast<Eigen::Index>(n)) row_sums->resize(n);
-    row_sums->setZero();
-#pragma omp parallel for
-    for (int i = 0; i < n; ++i)
-        for (int j = 0; j < m; ++j)
-            (*row_sums)(i) += x(i * m + j);
-    if (col_sums->size() != static_cast<Eigen::Index>(m)) col_sums->resize(m);
-    col_sums->setZero();
-#pragma omp parallel for
-    for (int j = 0; j < m; ++j)
-        for (int i = 0; i < n; ++i)
-            (*col_sums)(j) += x(i * m + j);
+static double compute_mar_err(int n, int m, const Vector& x, const Vector& eq_vector,
+                              Vector* row_sums, Vector* col_sums, Vector* a_marg) {
+    Map<const MatRowMajor> X(x.data(), n, m);
+    *row_sums = X.rowwise().sum();
+    *col_sums = X.colwise().sum().transpose();
     if (a_marg->size() != static_cast<Eigen::Index>(n)) a_marg->resize(n);
     a_marg->head(n - 1) = eq_vector.tail(n - 1);
     (*a_marg)(n - 1) = 1.0 - eq_vector.tail(n - 1).sum();
@@ -133,7 +94,7 @@ static bool mar_err_stabilized(const std::vector<double>& mar_err_list) {
     return (max_log - min_log) <= STABILIZATION_MAX_RANGE;
 }
 
-static double dynamic_threshold(const VectorXd& D_B12, int iter_cur, int n_supp, int M_dem, double reg_val) {
+static double dynamic_threshold(const Vector& D_B12, int iter_cur, int n_supp, int M_dem, double reg_val) {
     std::vector<double> pos;
     for (Eigen::Index ii = 0; ii < D_B12.size(); ++ii)
         if (D_B12(ii) > 0) pos.push_back(D_B12(ii));
@@ -182,26 +143,16 @@ static double dynamic_threshold(const VectorXd& D_B12, int iter_cur, int n_supp,
     return th;
 }
 
-static void A_block_matvec(int M_dem, int n12, const VectorXd& B11_diag, const VectorXd& B22_diag,
-                           const VectorXd& D_B12, const VectorXd& x, VectorXd& y) {
+static void A_block_matvec(int M_dem, int n12, const Vector& B11_diag, const Vector& B22_diag,
+                           const Vector& D_B12, const Vector& x, Vector& y) {
     y.resize(M_dem + n12);
-    y.head(M_dem) = B11_diag.cwiseProduct(x.head(M_dem));
-    for (int j = 0; j < n12; ++j) {
-        const double xj = x(M_dem + j);
-        const double* col = D_B12.data() + j * M_dem;
-        for (int i = 0; i < M_dem; ++i) y(i) += col[i] * xj;
-    }
-#pragma omp parallel for
-    for (int j = 0; j < n12; ++j) {
-        double t = B22_diag(j) * x(M_dem + j);
-        const double* col = D_B12.data() + j * M_dem;
-        for (int i = 0; i < M_dem; ++i) t += col[i] * x(i);
-        y(M_dem + j) = t;
-    }
+    Map<const Matrix<double, Dynamic, Dynamic, ColMajor>> D(D_B12.data(), M_dem, n12);
+    y.head(M_dem).noalias() = B11_diag.cwiseProduct(x.head(M_dem)) + D * x.tail(n12);
+    y.tail(n12).noalias() = B22_diag.cwiseProduct(x.tail(n12)) + D.transpose() * x.head(M_dem);
 }
 
 static void build_full_A_sparse(int M_dem, int n12,
-                                const VectorXd& B11_diag, const VectorXd& B22_diag, const VectorXd& D_B12,
+                                const Vector& B11_diag, const Vector& B22_diag, const Vector& D_B12,
                                 SparseMatrix<double>& A_out) {
     const int N = M_dem + n12;
     const size_t max_trips = static_cast<size_t>(N + 2 * M_dem * n12);
@@ -222,33 +173,21 @@ static void build_full_A_sparse(int M_dem, int n12,
 struct BPreconditioner {
     SimplicialLDLT<SparseMatrix<double>>* solver = nullptr;
     void compute(const SparseMatrix<double>&) {}
-    VectorXd solve(const VectorXd& b) const { return solver ? solver->solve(b) : b; }
+    Vector solve(const Vector& b) const { return solver ? solver->solve(b) : b; }
     ComputationInfo info() const { return solver ? solver->info() : Success; }
 };
 
-static void build_B_and_block_A(int M_dem, int n_supp, const VectorXd& scale, int iter_cur, double reg_val,
-                                SparseMatrix<double>& B, VectorXd& B11_diag, VectorXd& B22_diag, VectorXd& D_B12) {
+static void build_B_and_block_A(int M_dem, int n_supp, const Vector& scale, int iter_cur, double reg_val,
+                                SparseMatrix<double>& B, Vector& B11_diag, Vector& B22_diag, Vector& D_B12) {
     const int n12 = n_supp - 1;
     const int N = M_dem + n12;
     B11_diag.resize(M_dem);
     B22_diag.resize(n12);
     D_B12.resize(M_dem * n12);
-#pragma omp parallel for
-    for (int i = 0; i < M_dem; ++i) {
-        double s = 0;
-        for (int j = 0; j < n_supp; ++j) s += scale(i + j * M_dem);
-        B11_diag(i) = s;
-    }
-#pragma omp parallel for
-    for (int j = 0; j < n12; ++j) {
-        double s = 0;
-        for (int i = 0; i < M_dem; ++i) s += scale(i + j * M_dem);
-        B22_diag(j) = s;
-    }
-#pragma omp parallel for
-    for (int j = 0; j < n12; ++j)
-        for (int i = 0; i < M_dem; ++i)
-            D_B12(i + j * M_dem) = scale(i + j * M_dem);
+    Map<const Matrix<double, Dynamic, Dynamic, ColMajor>> S(scale.data(), M_dem, n_supp);
+    B11_diag = S.rowwise().sum();
+    B22_diag = S.leftCols(n12).colwise().sum().transpose();
+    D_B12 = Map<const Vector>(scale.data(), M_dem * n12);
     double th = dynamic_threshold(D_B12, iter_cur, n_supp, M_dem, reg_val);
     const size_t max_trips = static_cast<size_t>(N + 2 * M_dem * n12);
     std::vector<Triplet<double>> B_trips;
@@ -269,10 +208,10 @@ static void build_B_and_block_A(int M_dem, int n_supp, const VectorXd& scale, in
 
 template<typename PrecondType>
 int pcg_solve_matrix_free(int M_dem, int n12,
-                          const VectorXd& B11_diag, const VectorXd& B22_diag, const VectorXd& D_B12,
-                          const VectorXd& c_vec, PrecondType& B_solver,
-                          VectorXd& x_out, const VectorXd* x0, double rtol, double atol, int max_iter,
-                          VectorXd& r, VectorXd& z, VectorXd& p, VectorXd& Ap) {
+                          const Vector& B11_diag, const Vector& B22_diag, const Vector& D_B12,
+                          const Vector& c_vec, PrecondType& B_solver,
+                          Vector& x_out, const Vector* x0, double rtol, double atol, int max_iter,
+                          Vector& r, Vector& z, Vector& p, Vector& Ap) {
     const int N = M_dem + n12;
     r.resize(N); z.resize(N); p.resize(N); Ap.resize(N);
     A_block_matvec(M_dem, n12, B11_diag, B22_diag, D_B12, x_out, Ap);
@@ -307,28 +246,28 @@ void pdip_cg_internal(
 ) {
     (void)verbose;
     (void)cout;
-    // ===== Phase 0: parameters and buffers =====
+    // Dimensions
     const int n = static_cast<int>(a.size()), m = static_cast<int>(b.size());
     const int n_vars = n * m, n_constraints = m + n - 1;
     double reg_val = (reg > 0) ? reg : 1e-6;
     double barrier = reg_val;
     int cg_max_iter = opts.cg_max_iter;
 
-    Map<const VectorXd> cost_vec(M.data(), n_vars);
-    VectorXd eq_vec(n_constraints);
+    Map<const Vector> cost_vec(M.data(), n_vars);
+    Vector eq_vec(n_constraints);
     eq_vec.head(m) = b;
     eq_vec.tail(n - 1) = a.head(n - 1);
 
     auto t_start = std::chrono::steady_clock::now();
-    VectorXd x(n_vars), s(n_vars), lambda_val(n_constraints);
-    VectorXd scale(n_vars), b1_scaled(n_vars), delta_x(n_vars), delta_lambda(n_constraints), delta_s(n_vars);
-    VectorXd delta_lambda_final(n_constraints), b1(n_vars), b2(n_constraints), c_vec(n_constraints);
-    VectorXd r_dual(n_vars), r_pri(n_constraints), at_lambda(n_vars);
+    Vector x(n_vars), s(n_vars), lambda_val(n_constraints);
+    Vector scale(n_vars), b1_scaled(n_vars), delta_x(n_vars), delta_lambda(n_constraints), delta_s(n_vars);
+    Vector delta_lambda_final(n_constraints), b1(n_vars), b2(n_constraints), c_vec(n_constraints);
+    Vector r_dual(n_vars), r_pri(n_constraints), at_lambda(n_vars);
 
-    // ===== Phase 1: initial point =====
+    // Phase 1: initial point
     solve_AAT(eq_vec, n, m, lambda_val);
     AT_matvec(n, m, lambda_val, b1);
-    VectorXd initial_x = b1;
+    Vector initial_x = b1;
     b2.setZero();
     A_matvec(n, m, initial_x, b2);
     b2 = -barrier * b2;
@@ -336,7 +275,7 @@ void pdip_cg_internal(
     b2 -= r_pri;
     solve_AAT(b2, n, m, lambda_val);
     AT_matvec(n, m, lambda_val, at_lambda);
-    VectorXd initial_s = barrier * initial_x + cost_vec + at_lambda;
+    Vector initial_s = barrier * initial_x + cost_vec + at_lambda;
     double dx_shift = 0.0, ds_shift = 0.0;
     for (int ii = 0; ii < n_vars; ++ii) {
         if (initial_x(ii) < 0) dx_shift = (std::max)(dx_shift, -1.5 * initial_x(ii));
@@ -352,17 +291,17 @@ void pdip_cg_internal(
     x = x.cwiseMax(1e-10);
     s = s.cwiseMax(1e-10);
 
-    VectorXd delta_lambda_prev;
+    Vector delta_lambda_prev;
     std::vector<double> mar_err_history, time_sec_history, obj_history;
     const int N_block = m + n - 1, n12 = n - 1;
-    VectorXd B11_diag(m), B22_diag(n12), D_B12(m * n12);
-    VectorXd pcg_r(n_constraints), pcg_z(n_constraints), pcg_p(n_constraints), pcg_Ap(n_constraints);
-    VectorXd mar_row_sums(n), mar_col_sums(m), mar_a_marg(n), r_c_cor(n_vars), delta_s_final(n_vars), delta_x_final(n_vars);
+    Vector B11_diag(m), B22_diag(n12), D_B12(m * n12);
+    Vector pcg_r(n_constraints), pcg_z(n_constraints), pcg_p(n_constraints), pcg_Ap(n_constraints);
+    Vector mar_row_sums(n), mar_col_sums(m), mar_a_marg(n), r_c_cor(n_vars), delta_s_final(n_vars), delta_x_final(n_vars);
     const bool do_timing = s_timing_enabled();
     if (do_timing) s_timing.reset();
     double total_loop_sec = 0;
 
-    // ===== Phase 2: outer iterations =====
+    // Phase 2: outer iterations
     for (int iteration = 0; iteration < max_iter; ++iteration) {
         // 2.1 Residuals and scaling
         auto t_iter_start = std::chrono::steady_clock::now();
@@ -405,7 +344,7 @@ void pdip_cg_internal(
         A_matvec_scaled(n, m, scale, b1, c_vec);
         c_vec -= b2;
         delta_lambda.setZero();
-        const VectorXd* x0_ptr = (delta_lambda_prev.size() == n_constraints) ? &delta_lambda_prev : nullptr;
+        const Vector* x0_ptr = (delta_lambda_prev.size() == n_constraints) ? &delta_lambda_prev : nullptr;
         if (x0_ptr) delta_lambda = *x0_ptr;
         double c_norm = c_vec.norm() + 1e-50;
         double rtol_cg = (std::min)(cg_tol / c_norm, 0.1);
@@ -520,6 +459,7 @@ void pdip_cg_internal(
         result.niter = iteration + 1;
     }
 
+    // Phase 3: fill result
     result.plan.resize(n, m);
     for (int i = 0; i < n; ++i)
         for (int j = 0; j < m; ++j)

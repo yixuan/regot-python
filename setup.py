@@ -58,18 +58,10 @@ class get_eigen_include(object):
 
         return target_dir.name
 
-# Test CPU feature
-# Better performance if AVX2 is supported and OpenMP is enabled
-# It seems hard to configure OpenMP for MacOS on Github Action,
-# so for now we disable OpenMP for MacOS
+# Test CPU feature (OpenMP disabled: single-thread Eigen path in PDIP solvers)
 extra_compiler_args = []
 try:
     info = get_cpu_info()
-    if info["count"] > 1:
-        if sys.platform == "win32":
-            extra_compiler_args += ["/openmp"]
-        if sys.platform == "linux":
-            extra_compiler_args += ["-fopenmp"]
     if "avx2" in info["flags"]:
         if sys.platform == "win32":
             extra_compiler_args += ["/arch:AVX2"]

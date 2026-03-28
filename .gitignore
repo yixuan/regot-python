@@ -2,6 +2,7 @@
 build/*
 regot.egg-info/*
 **/__pycache__/
+.pytest_cache/
 .venv/
 
 # Binary files
