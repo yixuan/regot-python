@@ -1,8 +1,9 @@
 // Role of this file:
 // 1) PDIP-FP kernel (same code path as the first version);
-// 2) Unified regot primary fields + optional FP per-phase timing;
-// 3) Readable phase structure and profiling hooks without changing algorithm semantics.
+// 2) Unified regot primary fields;
+// 3) Optional FP per-phase timing in PDIPResult only when built with REGOT_PDIP_DEV (see pdip_dev_flags.h).
 #include "pdip_solvers.h"
+#include "pdip_dev_flags.h"
 #include "pdip_sparse_chol.h"
 #include "pdip_transport_ops.hpp"
 #include <Eigen/Dense>
@@ -54,6 +55,7 @@ void pdip_cholesky_solve(int n, const std::vector<double>& L, const double* b, d
 static const double SMALL = 1e-50;
 using Clock = std::chrono::steady_clock;
 
+#ifdef REGOT_PDIP_DEV
 struct PdipFpProfile {
     double build_B_sec{0};
     double cholesky_factor_sec{0};
@@ -63,6 +65,7 @@ struct PdipFpProfile {
     int cholesky_solve_calls{0};
     int fixed_point_calls{0};
 };
+#endif
 
 static const std::vector<double>& factorize_with_fallback(
     std::vector<double>& B_dense,
@@ -291,11 +294,14 @@ void pdip_fp_internal(
     double exit_scale = opts.fp_exit_scale;
     if (exit_scale <= 0) exit_scale = 1e-2;
 
-    PdipFpProfile prof{};
     auto t_start = Clock::now();
+#ifdef REGOT_PDIP_DEV
+    PdipFpProfile prof{};
     auto elapsed = [](Clock::time_point from) {
         return std::chrono::duration<double>(Clock::now() - from).count();
     };
+    Clock::time_point t_prof;
+#endif
 
     std::vector<double> cost(static_cast<size_t>(n_vars)), eq_vector(static_cast<size_t>(n_constraints));
     std::memcpy(cost.data(), M.data(), sizeof(double) * static_cast<size_t>(n_vars));
@@ -366,7 +372,9 @@ void pdip_fp_internal(
 
     // Phase 2: outer iterations
     for (int iteration = 0; iteration < max_iter; ++iteration) {
-        auto t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         {
             Eigen::Map<Vector> sc(scale.data(), n_vars);
             Eigen::Map<const Vector> xv(x.data(), n_vars), sv(s.data(), n_vars);
@@ -380,7 +388,9 @@ void pdip_fp_internal(
             rd.array() = barrier * xv.array() + cv.array() + b1v.array() - sv.array();
         }
         eq_matvec(nullptr, x.data(), n, m, r_pri.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> rp(r_pri.data(), n_constraints);
             Eigen::Map<const Vector> ev(eq_vector.data(), n_constraints);
@@ -391,7 +401,9 @@ void pdip_fp_internal(
         bool use_fp_this_iter = false;
         bool use_sparse_chol = false;
         PdipSparseChol sparse_chol;
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         if (iteration < 3) {
             build_B1_full(m, n, scale.data(), B_dense);
         } else {
@@ -409,14 +421,20 @@ void pdip_fp_internal(
                 build_B1_full(m, n, scale.data(), B_dense);
             }
         }
-        prof.build_B_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.build_B_sec += elapsed(t_prof);
+#endif
 
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         const std::vector<double>* B_chol_ptr = nullptr;
         if (!use_sparse_chol) {
             B_chol_ptr = &factorize_with_fallback(B_dense, B_backup, B_chol_work, N_block);
         }
-        prof.cholesky_factor_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.cholesky_factor_sec += elapsed(t_prof);
+#endif
 
         {
             Eigen::Map<Vector> b1v(b1.data(), n_vars);
@@ -433,9 +451,13 @@ void pdip_fp_internal(
             Eigen::Map<const Vector> sc(scale.data(), n_vars), b1v(b1.data(), n_vars);
             b1s.array() = sc.array() * b1v.array();
         }
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         eq_matvec(nullptr, b1_scaled.data(), n, m, c.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> cv(c.data(), n_constraints);
             Eigen::Map<const Vector> b2v(b2.data(), n_constraints);
@@ -444,21 +466,33 @@ void pdip_fp_internal(
 
         const double* x0_fp = delta_lambda_prev.empty() ? nullptr : delta_lambda_prev.data();
         if (!use_fp_this_iter) {
-            t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+            t_prof = Clock::now();
+#endif
             detail::pdip_cholesky_solve(N_block, *B_chol_ptr, c.data(), delta_lambda.data(), res_fp.data());
-            prof.cholesky_solve_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+            prof.cholesky_solve_sec += elapsed(t_prof);
             prof.cholesky_solve_calls += 1;
+#endif
         } else {
-            t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+            t_prof = Clock::now();
+#endif
             fixed_point_solve_block_sparse(N_block, block_b2, sparse_chol, c.data(), delta_lambda.data(), x0_fp,
                                            exit_scale, fp_max_iter, rhs_fp, res_fp);
-            prof.fixed_point_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+            prof.fixed_point_sec += elapsed(t_prof);
             prof.fixed_point_calls += 1;
+#endif
         }
 
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         eq_matvec_trans(delta_lambda.data(), n, m, b1.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> ds(delta_s.data(), n_vars), dx(delta_x.data(), n_vars);
             Eigen::Map<const Vector> sc(scale.data(), n_vars), rd(r_dual.data(), n_vars), xv(x.data(), n_vars), sv(s.data(), n_vars);
@@ -503,30 +537,46 @@ void pdip_fp_internal(
             Eigen::Map<const Vector> sc(scale.data(), n_vars), b1v(b1.data(), n_vars);
             b1s.array() = sc.array() * b1v.array();
         }
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         eq_matvec(nullptr, b1_scaled.data(), n, m, c.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> cv(c.data(), n_constraints);
             Eigen::Map<const Vector> b2v(b2.data(), n_constraints);
             cv -= b2v;
         }
         if (!use_fp_this_iter) {
-            t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+            t_prof = Clock::now();
+#endif
             detail::pdip_cholesky_solve(N_block, *B_chol_ptr, c.data(), delta_lambda_final.data(), res_fp.data());
-            prof.cholesky_solve_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+            prof.cholesky_solve_sec += elapsed(t_prof);
             prof.cholesky_solve_calls += 1;
+#endif
         } else {
-            t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+            t_prof = Clock::now();
+#endif
             fixed_point_solve_block_sparse(N_block, block_b2, sparse_chol, c.data(), delta_lambda_final.data(),
                                            delta_lambda.data(), exit_scale, fp_max_iter, rhs_fp, res_fp);
-            prof.fixed_point_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+            prof.fixed_point_sec += elapsed(t_prof);
             prof.fixed_point_calls += 1;
+#endif
         }
 
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         eq_matvec_trans(delta_lambda_final.data(), n, m, b1.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> dsf(delta_s_final.data(), n_vars), dxf(delta_x_final.data(), n_vars);
             Eigen::Map<const Vector> sc(scale.data(), n_vars), rd(r_dual.data(), n_vars), xv(x.data(), n_vars), sv(s.data(), n_vars);
@@ -560,7 +610,9 @@ void pdip_fp_internal(
         obj_vals.push_back(obj);
         run_times.push_back(std::chrono::duration<double>(Clock::now() - t_start).count() * 1000.0);
 
-        t_loop = Clock::now();
+#ifdef REGOT_PDIP_DEV
+        t_prof = Clock::now();
+#endif
         eq_matvec_trans(lambda_val.data(), n, m, b1.data());
         {
             Eigen::Map<Vector> rd(r_dual.data(), n_vars);
@@ -569,7 +621,9 @@ void pdip_fp_internal(
             rd.array() = barrier * xv.array() + cv.array() + b1v.array() - sv.array();
         }
         eq_matvec(nullptr, x.data(), n, m, r_pri.data());
-        prof.eq_matvec_sec += elapsed(t_loop);
+#ifdef REGOT_PDIP_DEV
+        prof.eq_matvec_sec += elapsed(t_prof);
+#endif
         {
             Eigen::Map<Vector> rp(r_pri.data(), n_constraints);
             Eigen::Map<const Vector> ev(eq_vector.data(), n_constraints);
@@ -625,12 +679,14 @@ void pdip_fp_internal(
     result.obj_vals = std::move(obj_vals);
     result.mar_errs = std::move(mar_err_history);
     result.run_times = std::move(run_times);
+#ifdef REGOT_PDIP_DEV
     result.t_build_B = prof.build_B_sec;
     result.t_chol_factor = prof.cholesky_factor_sec;
     result.t_chol_solve = prof.cholesky_solve_sec;
     result.t_eq_matvec = prof.eq_matvec_sec;
     double t_total = std::chrono::duration<double>(Clock::now() - t_start).count();
     result.t_other = std::max(0.0, t_total - (result.t_build_B + result.t_chol_factor + result.t_chol_solve + result.t_eq_matvec));
+#endif
 }
 
 }  // namespace PDIP

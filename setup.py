@@ -70,12 +70,20 @@ try:
 except:
     pass
 
+
+def _pdip_dev_macros():
+    macros = [("VERSION_INFO", __version__)]
+    # Developer-only PDIP profiling / env knobs (see src/pdip_dev_flags.h).
+    if os.environ.get("REGOT_PDIP_DEV", "").strip().lower() in ("1", "true", "yes", "on"):
+        macros.append(("REGOT_PDIP_DEV", "1"))
+    return macros
+
+
 ext_modules = [
     Pybind11Extension("regot._internal",
         sorted(glob("src/*.cpp")),
         include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
-        # Example: passing in the version to the compiled code
-        define_macros = [("VERSION_INFO", __version__)],
+        define_macros=_pdip_dev_macros(),
         extra_compile_args = extra_compiler_args,
         extra_link_args = extra_compiler_args
     )

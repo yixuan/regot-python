@@ -2,11 +2,13 @@
  * Role of this file:
  * 1) PDIP-CG kernel (same lineage as the first version);
  * 2) Unified regot primary fields;
- * 3) Optional per-phase timing output for profiling.
+ * 3) Optional per-phase timing (file + env) only when built with REGOT_PDIP_DEV (see pdip_dev_flags.h).
  */
 #define NOMINMAX
 #include "pdip_solvers.h"
+#include "pdip_dev_flags.h"
 #include "pdip_transport_ops.hpp"
+#include "pdip_block_operator.h"
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
@@ -26,6 +28,7 @@ using Vector = VectorXd;
 using RowVector = RowVectorXd;
 using MatRowMajor = transport::MatRowMajor;
 
+#ifdef REGOT_PDIP_DEV
 struct PdipTiming {
     double build_B = 0, B_compute = 0, build_A = 0, pcg1 = 0, pcg2 = 0, other = 0;
     void reset() { build_B = B_compute = build_A = pcg1 = pcg2 = other = 0; }
@@ -35,11 +38,7 @@ static bool s_timing_enabled() {
     const char* v = std::getenv("PDIP_CG_TIMING");
     return v && (v[0] == '1' || v[0] == 'y' || v[0] == 'Y');
 }
-static bool use_eigen_cg() {
-    const char* v = std::getenv("PDIP_USE_EIGEN_CG");
-    return v && (v[0] == '1' || v[0] == 'y' || v[0] == 'Y');
-}
-
+#endif
 static const double SMALL = 1e-50;
 static const int STABILIZATION_WINDOW = 30;
 static const double STABILIZATION_MAX_RANGE = 0.1;
@@ -110,8 +109,10 @@ static double dynamic_threshold(const Vector& D_B12, int iter_cur, int n_supp, i
     double keep_ratio;
     bool use_new_sparsity = false;
     double keep_factor = 3.0;
+#ifdef REGOT_PDIP_DEV
     const char* env_keep = std::getenv("PDIP_SPARSITY_KEEP");
     if (env_keep) keep_factor = std::atof(env_keep);
+#endif
     if (keep_factor <= 1.0 || keep_factor > 10.0) {
         keep_ratio = 1.0 / (std::max)(n_supp, 1);
     } else {
@@ -143,39 +144,35 @@ static double dynamic_threshold(const Vector& D_B12, int iter_cur, int n_supp, i
     return th;
 }
 
-static void A_block_matvec(int M_dem, int n12, const Vector& B11_diag, const Vector& B22_diag,
-                           const Vector& D_B12, const Vector& x, Vector& y) {
-    y.resize(M_dem + n12);
-    Map<const Matrix<double, Dynamic, Dynamic, ColMajor>> D(D_B12.data(), M_dem, n12);
-    y.head(M_dem).noalias() = B11_diag.cwiseProduct(x.head(M_dem)) + D * x.tail(n12);
-    y.tail(n12).noalias() = B22_diag.cwiseProduct(x.tail(n12)) + D.transpose() * x.head(M_dem);
-}
-
-static void build_full_A_sparse(int M_dem, int n12,
-                                const Vector& B11_diag, const Vector& B22_diag, const Vector& D_B12,
-                                SparseMatrix<double>& A_out) {
-    const int N = M_dem + n12;
-    const size_t max_trips = static_cast<size_t>(N + 2 * M_dem * n12);
-    std::vector<Triplet<double>> trips;
-    trips.reserve(max_trips);
-    for (int i = 0; i < M_dem; ++i) trips.emplace_back(i, i, B11_diag(i));
-    for (int i = 0; i < n12; ++i) trips.emplace_back(M_dem + i, M_dem + i, B22_diag(i));
-    for (int i = 0; i < M_dem; ++i)
-        for (int j = 0; j < n12; ++j) {
-            double v = D_B12(i + j * M_dem);
-            trips.emplace_back(i, M_dem + j, v);
-            trips.emplace_back(M_dem + j, i, v);
-        }
-    A_out.resize(N, N);
-    A_out.setFromTriplets(trips.begin(), trips.end());
-}
-
 struct BPreconditioner {
     SimplicialLDLT<SparseMatrix<double>>* solver = nullptr;
-    void compute(const SparseMatrix<double>&) {}
+    template<typename T>
+    void compute(const T&) {}
     Vector solve(const Vector& b) const { return solver ? solver->solve(b) : b; }
     ComputationInfo info() const { return solver ? solver->info() : Success; }
 };
+
+// Eigen matrix-free CG + LDLT preconditioner (same pattern as qrot_cg.h HessianCG).
+// Stopping: Eigen uses relative residual; match legacy max(rtol*||b||, atol) via effective relative tol.
+static void solve_block_schur_cg(
+    int M_dem, int n12,
+    const Vector& B11_diag, const Vector& B22_diag, const Vector& D_B12,
+    const Vector& rhs, SimplicialLDLT<SparseMatrix<double>>& B_solver,
+    Vector& x, const Vector* guess, double rtol, double atol, int max_iter
+) {
+    BlockACG Aop(M_dem, n12, B11_diag, B22_diag, D_B12);
+    ConjugateGradient<BlockACG, Lower | Upper, BPreconditioner> cg;
+    cg.compute(Aop);
+    cg.preconditioner().solver = &B_solver;
+    const double bn = rhs.norm() + 1e-50;
+    const double rel_eff = (std::max)(rtol, atol / bn);
+    cg.setTolerance(rel_eff);
+    cg.setMaxIterations(max_iter);
+    if (guess && static_cast<int>(guess->size()) == static_cast<int>(rhs.size()))
+        x = cg.solveWithGuess(rhs, *guess);
+    else
+        x = cg.solve(rhs);
+}
 
 static void build_B_and_block_A(int M_dem, int n_supp, const Vector& scale, int iter_cur, double reg_val,
                                 SparseMatrix<double>& B, Vector& B11_diag, Vector& B22_diag, Vector& D_B12) {
@@ -204,38 +201,6 @@ static void build_B_and_block_A(int M_dem, int n_supp, const Vector& scale, int 
         }
     B.resize(N, N);
     B.setFromTriplets(B_trips.begin(), B_trips.end());
-}
-
-template<typename PrecondType>
-int pcg_solve_matrix_free(int M_dem, int n12,
-                          const Vector& B11_diag, const Vector& B22_diag, const Vector& D_B12,
-                          const Vector& c_vec, PrecondType& B_solver,
-                          Vector& x_out, const Vector* x0, double rtol, double atol, int max_iter,
-                          Vector& r, Vector& z, Vector& p, Vector& Ap) {
-    const int N = M_dem + n12;
-    r.resize(N); z.resize(N); p.resize(N); Ap.resize(N);
-    A_block_matvec(M_dem, n12, B11_diag, B22_diag, D_B12, x_out, Ap);
-    r.noalias() = c_vec - Ap;
-    z = B_solver.solve(r);
-    p = z;
-    double rz = r.dot(z);
-    double b_norm = c_vec.norm();
-    double tol = (std::max)(rtol * b_norm, atol);
-    for (int it = 0; it < max_iter; ++it) {
-        A_block_matvec(M_dem, n12, B11_diag, B22_diag, D_B12, p, Ap);
-        double pAp = p.dot(Ap);
-        if (pAp <= 0) return -1;
-        double alpha = rz / pAp;
-        x_out.noalias() += alpha * p;
-        r.noalias() -= alpha * Ap;
-        if (r.norm() <= tol) return it + 1;
-        z = B_solver.solve(r);
-        double rz_new = r.dot(z);
-        double beta = rz_new / rz;
-        rz = rz_new;
-        p.noalias() = z + beta * p;
-    }
-    return -1;
 }
 
 void pdip_cg_internal(
@@ -295,16 +260,19 @@ void pdip_cg_internal(
     std::vector<double> mar_err_history, time_sec_history, obj_history;
     const int N_block = m + n - 1, n12 = n - 1;
     Vector B11_diag(m), B22_diag(n12), D_B12(m * n12);
-    Vector pcg_r(n_constraints), pcg_z(n_constraints), pcg_p(n_constraints), pcg_Ap(n_constraints);
     Vector mar_row_sums(n), mar_col_sums(m), mar_a_marg(n), r_c_cor(n_vars), delta_s_final(n_vars), delta_x_final(n_vars);
+#ifdef REGOT_PDIP_DEV
     const bool do_timing = s_timing_enabled();
     if (do_timing) s_timing.reset();
     double total_loop_sec = 0;
+#endif
 
     // Phase 2: outer iterations
     for (int iteration = 0; iteration < max_iter; ++iteration) {
         // 2.1 Residuals and scaling
+#ifdef REGOT_PDIP_DEV
         auto t_iter_start = std::chrono::steady_clock::now();
+#endif
         scale = x.array() / (barrier * x.array() + s.array() + SMALL);
         AT_matvec(n, m, lambda_val, at_lambda);
         r_dual = barrier * x + cost_vec + at_lambda - s;
@@ -314,12 +282,18 @@ void pdip_cg_internal(
 
         // 2.2 Build preconditioner matrix B
         SparseMatrix<double> B_sp;
+#ifdef REGOT_PDIP_DEV
         auto t0 = std::chrono::steady_clock::now();
+#endif
         build_B_and_block_A(m, n, scale, iteration, reg_val, B_sp, B11_diag, B22_diag, D_B12);
+#ifdef REGOT_PDIP_DEV
         if (do_timing) s_timing.build_B += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+#endif
 
         SimplicialLDLT<SparseMatrix<double>> B_solver;
+#ifdef REGOT_PDIP_DEV
         t0 = std::chrono::steady_clock::now();
+#endif
         for (int shift_try = 0; shift_try < 4; ++shift_try) {
             double shift = (shift_try == 0) ? 0 : (shift_try == 1 ? 1e-12 : (shift_try == 2 ? 1e-10 : 1e-8));
             SparseMatrix<double> B_shift = B_sp;
@@ -328,7 +302,9 @@ void pdip_cg_internal(
             B_solver.compute(B_shift);
             if (B_solver.info() == Success) break;
         }
+#ifdef REGOT_PDIP_DEV
         if (do_timing) s_timing.B_compute += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+#endif
 
         double r_p_norm = r_pri.norm();
         double cg_rel_early = 0.1, cg_rel_late = 0.01;
@@ -348,25 +324,14 @@ void pdip_cg_internal(
         if (x0_ptr) delta_lambda = *x0_ptr;
         double c_norm = c_vec.norm() + 1e-50;
         double rtol_cg = (std::min)(cg_tol / c_norm, 0.1);
+#ifdef REGOT_PDIP_DEV
         t0 = std::chrono::steady_clock::now();
-        if (use_eigen_cg()) {
-            SparseMatrix<double> A_sparse;
-            auto t_build_A = std::chrono::steady_clock::now();
-            build_full_A_sparse(m, n12, B11_diag, B22_diag, D_B12, A_sparse);
-            double build_A_sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t_build_A).count();
-            if (do_timing) s_timing.build_A += build_A_sec;
-            ConjugateGradient<SparseMatrix<double>, Lower|Upper, BPreconditioner> cg;
-            cg.compute(A_sparse);
-            cg.preconditioner().solver = &B_solver;
-            cg.setTolerance(cg_tol / c_norm);
-            cg.setMaxIterations(cg_max_iter);
-            delta_lambda = cg.solveWithGuess(c_vec, delta_lambda);
-        } else {
-            pcg_solve_matrix_free(m, n12, B11_diag, B22_diag, D_B12, c_vec, B_solver,
-                                  delta_lambda, x0_ptr, rtol_cg, cg_tol, cg_max_iter,
-                                  pcg_r, pcg_z, pcg_p, pcg_Ap);
-        }
+#endif
+        solve_block_schur_cg(m, n12, B11_diag, B22_diag, D_B12, c_vec, B_solver,
+                             delta_lambda, x0_ptr, rtol_cg, cg_tol, cg_max_iter);
+#ifdef REGOT_PDIP_DEV
         if (do_timing) s_timing.pcg1 += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+#endif
 
         // 2.4 Corrector step (second linear system)
         AT_matvec(n, m, delta_lambda, b1);
@@ -388,25 +353,14 @@ void pdip_cg_internal(
         delta_lambda_final = delta_lambda;
         c_norm = c_vec.norm() + 1e-50;
         rtol_cg = (std::min)(cg_tol / c_norm, 0.1);
+#ifdef REGOT_PDIP_DEV
         t0 = std::chrono::steady_clock::now();
-        if (use_eigen_cg()) {
-            SparseMatrix<double> A_sparse;
-            auto t_build_A = std::chrono::steady_clock::now();
-            build_full_A_sparse(m, n12, B11_diag, B22_diag, D_B12, A_sparse);
-            double build_A_sec = std::chrono::duration<double>(std::chrono::steady_clock::now() - t_build_A).count();
-            if (do_timing) s_timing.build_A += build_A_sec;
-            ConjugateGradient<SparseMatrix<double>, Lower|Upper, BPreconditioner> cg;
-            cg.compute(A_sparse);
-            cg.preconditioner().solver = &B_solver;
-            cg.setTolerance(cg_tol / c_norm);
-            cg.setMaxIterations(cg_max_iter);
-            delta_lambda_final = cg.solveWithGuess(c_vec, delta_lambda);
-        } else {
-            pcg_solve_matrix_free(m, n12, B11_diag, B22_diag, D_B12, c_vec, B_solver,
-                                  delta_lambda_final, &delta_lambda, rtol_cg, cg_tol, cg_max_iter,
-                                  pcg_r, pcg_z, pcg_p, pcg_Ap);
-        }
+#endif
+        solve_block_schur_cg(m, n12, B11_diag, B22_diag, D_B12, c_vec, B_solver,
+                             delta_lambda_final, &delta_lambda, rtol_cg, cg_tol, cg_max_iter);
+#ifdef REGOT_PDIP_DEV
         if (do_timing) s_timing.pcg2 += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+#endif
 
         AT_matvec(n, m, delta_lambda_final, b1);
         delta_s_final = ((1.0 - barrier * scale.array()) * (b1.array() + r_dual.array() - barrier * r_c_cor.array() / (s.array() + SMALL))).matrix();
@@ -443,7 +397,9 @@ void pdip_cg_internal(
         time_sec_history.push_back(std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count() * 1000.0);
         obj_history.push_back(cost_vec.dot(x) + (reg_val / 2.0) * x.squaredNorm());
 
+#ifdef REGOT_PDIP_DEV
         if (do_timing) total_loop_sec += std::chrono::duration<double>(std::chrono::steady_clock::now() - t_iter_start).count();
+#endif
         // gap+mu use tol; mar / stability window use opts.cg_mar_tol (default 1e-10)
         bool by_gap = (primal_gap < tol && dual_gap < tol && mu < tol);
         bool by_mar_tol = (current_mar_err < opts.cg_mar_tol);
@@ -468,6 +424,7 @@ void pdip_cg_internal(
     result.mar_errs = std::move(mar_err_history);
     result.run_times = std::move(time_sec_history);
 
+#ifdef REGOT_PDIP_DEV
     if (do_timing) {
         s_timing.other = total_loop_sec - s_timing.build_B - s_timing.B_compute - s_timing.build_A - s_timing.pcg1 - s_timing.pcg2;
         if (s_timing.other < 0) s_timing.other = 0;
@@ -491,6 +448,7 @@ void pdip_cg_internal(
             std::fclose(fp);
         }
     }
+#endif
 }
 
 }  // namespace PDIP

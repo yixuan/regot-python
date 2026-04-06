@@ -65,6 +65,16 @@ Primal-dual interior-point QROT solver (unified API):
   - For **`fp`**: default `tol=1e-8`. By default, stopping uses only normalized primal/dual gaps and `mu` (`fp_stop_gap_mu_only=True`). Pass `fp_stop_gap_mu_only=False` if you also want to stop when marginal error `mar_err` falls below `tol`.
 - **`pdip_cg`** / **`pdip_fp`**: legacy aliases for `qrot_pdip` with `inner_solver="cg"` or `"fp"` respectively.
 
+**PDIP mathematics (sketch).** Each outer step solves a Schur-type system in the dual increment $\Delta\lambda$,
+
+```math
+\mathcal{A}\,\Delta\lambda = c_{\mathrm{rhs}},
+```
+
+where $\mathcal{A}$ is the block operator induced by the transport scaling matrix (matrix-free matvec via `BlockACG` in the CG path). The CG variant uses **preconditioned conjugate gradients**: a sparse approximation $B$ of the Schur structure is factorized with **LDLT**, and $M^{-1}r \approx B^{-1}r$ is applied as the preconditioner. The FP variant solves related systems with explicit Cholesky / sparse Cholesky and optional fixed-point iteration. See `src/pdip_cg.cpp`, `src/pdip_fp.cpp`, and `src/pdip_block_operator.h` for the full numerical path.
+
+**Developer / profiling builds.** Prebuilt wheels use the same numerics but **do not** compile in PDIP profiling hooks. When building from source, set **`REGOT_PDIP_DEV=1`** for the install step (e.g. `REGOT_PDIP_DEV=1 pip install -e .` on Unix; on Windows, set the variable in the environment before `pip install`). That enables optional runtime knobs: e.g. **`PDIP_CG_TIMING=1`** writes a phase breakdown to `pdip_cg_timing.txt`; with **`REGOT_PDIP_DEV`**, **`PDIP_SPARSITY_KEEP`** can tune the dynamic sparsity threshold in the CG preconditioner (see `src/pdip_dev_flags.h`). Without **`REGOT_PDIP_DEV`**, those environment variables are ignored—matching release behavior and avoiding accidental I/O.
+
 They return an object with fields:
 
 - `niter`: number of outer iterations.
