@@ -1,4 +1,4 @@
-# RegOT-Python<img src="https://statr.me/images/sticker-regot.png" alt="regot" height="150px" align="right" />
+# RegOT-Python<img src="figs/sticker-regot.svg" alt="RegOT" height="150px" align="right" />
 
 **RegOT** is a collection of state-of-the-art solvers for
 regularized optimal transport (OT) problems, implemented in
@@ -65,14 +65,6 @@ Primal-dual interior-point QROT solver (unified API):
   - For **`fp`**: default `tol=1e-8`. By default, stopping uses only normalized primal/dual gaps and `mu` (`fp_stop_gap_mu_only=True`). Pass `fp_stop_gap_mu_only=False` if you also want to stop when marginal error `mar_err` falls below `tol`.
 - **`pdip_cg`** / **`pdip_fp`**: legacy aliases for `qrot_pdip` with `inner_solver="cg"` or `"fp"` respectively.
 
-**PDIP mathematics (sketch).** Each outer step solves a Schur-type system in the dual increment $\Delta\lambda$,
-
-```math
-\mathcal{A}\,\Delta\lambda = c_{\mathrm{rhs}},
-```
-
-where $\mathcal{A}$ is the block operator induced by the transport scaling matrix (matrix-free matvec via `BlockACG` in the CG path). The CG variant uses **preconditioned conjugate gradients**: a sparse approximation $B$ of the Schur structure is factorized with **LDLT**, and $M^{-1}r \approx B^{-1}r$ is applied as the preconditioner. The FP variant solves related systems with explicit Cholesky / sparse Cholesky and optional fixed-point iteration. See `src/pdip_cg.cpp`, `src/pdip_fp.cpp`, and `src/pdip_block_operator.h` for the full numerical path.
-
 **Developer / profiling builds.** Prebuilt wheels use the same numerics but **do not** compile in PDIP profiling hooks. When building from source, set **`REGOT_PDIP_DEV=1`** for the install step (e.g. `REGOT_PDIP_DEV=1 pip install -e .` on Unix; on Windows, set the variable in the environment before `pip install`). That enables optional runtime knobs: e.g. **`PDIP_CG_TIMING=1`** writes a phase breakdown to `pdip_cg_timing.txt`; with **`REGOT_PDIP_DEV`**, **`PDIP_SPARSITY_KEEP`** can tune the dynamic sparsity threshold in the CG preconditioner (see `src/pdip_dev_flags.h`). Without **`REGOT_PDIP_DEV`**, those environment variables are ignored—matching release behavior and avoiding accidental I/O.
 
 They return an object with fields:
@@ -106,10 +98,9 @@ Eigen headers are downloaded automatically on first build (or use `EIGEN3_INCLUD
 
 ## 📗 Example
 
-The code below shows a minimal example computing EROT
-given $a$, $b$, $M$, and $\eta$.
-
-
+The code below shows minimal examples computing **EROT** (Sinkhorn-type solvers)
+and **QROT** with the primal-dual interior-point solver **`qrot_pdip`**, given the same
+$a$, $b$, $M$ and regularization strengths.
 
 ```py
 import numpy as np
@@ -147,35 +138,45 @@ res1 = regot.sinkhorn_bcd(
 reg = 0.01
 res2 = regot.sinkhorn_ssns(
     M, a, b, reg, tol=1e-6, max_iter=1000, verbose=0)
+
+# QROT: primal-dual interior-point (PDIP); `reg` is the QROT penalty γ (see formulation)
+res3 = regot.qrot_pdip(
+    M, a, b, 0.1, max_iter=2000, inner_solver="cg"
+)  # default tol=1e-8, gap+μ stop
+reg = 0.01
+res4 = regot.qrot_pdip(
+    M, a, b, reg, max_iter=2000, inner_solver="fp"
+)
 ```
 
-We can retrieve the computed transport plans and visualize them:
+We can retrieve the computed transport plans and visualize them (heatmap of the plan matrix). The two **PDIP** figures below are saved as `figs/plan_pdip_reg0_1.png` and `figs/plan_pdip_reg0_01.png` (the older `figs/plan_reg0_*.png` filenames are left unchanged in the repo).
+
+To **regenerate** the PDIP PNGs after editing the example, run from the repository root (requires a local build, e.g. `pip install -e .`):
+
+```bash
+python figs/generate_readme_plans.py
+```
 
 ```py
-def vis_plan(T, title=""):
-    fig = plt.figure(figsize=(8, 8))
-    plt.imshow(T, interpolation="nearest")
-    plt.title(title, fontsize=20)
+def vis_plan(T, title="", cmap="viridis", save_path=None):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.imshow(T, cmap=cmap, interpolation="nearest", aspect="auto")
+    ax.set_title(title, fontsize=20)
+    if save_path is not None:
+        fig.savefig(save_path, bbox_inches="tight", dpi=150)
     plt.show()
 
-vis_plan(res1.plan, title="reg=0.1")
-vis_plan(res2.plan, title="reg=0.01")
+vis_plan(res1.plan, title="Sinkhorn, reg=0.1")
+vis_plan(res2.plan, title="SSNS, reg=0.01")
+vis_plan(res3.plan, title="reg=0.1", save_path="figs/plan_pdip_reg0_1.png")
+vis_plan(res4.plan, title="reg=0.01", save_path="figs/plan_pdip_reg0_01.png")
 ```
 
-PDIP example (`qrot_pdip`):
+<img src="figs/plan_pdip_reg0_1.png" width="45%" alt="QROT PDIP transport plan, reg=0.1" /> <img src="figs/plan_pdip_reg0_01.png" width="45%" alt="QROT PDIP transport plan, reg=0.01" />
 
-```py
-res3 = regot.qrot_pdip(M, a, b, reg, max_iter=2000, inner_solver="cg")  # default tol=1e-8, gap+μ stop
-res4 = regot.qrot_pdip(M, a, b, reg, max_iter=2000, inner_solver="fp")
-print(res3.niter, res3.mar_errs[-1], res3.converged)
-print(res4.niter, res4.mar_errs[-1], res4.converged)
-```
+🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [figs/sticker.py](figs/sticker.py) to reproduce the image.
 
-<img src="figs/plan_reg0_1.png" width="45%" /> <img src="figs/plan_reg0_01.png" width="45%" />
-
-🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [this code](https://github.com/yixuan/regot-python/blob/master/figs/sticker.py) to reproduce the image.
-
-![](https://statr.me/images/sticker-regot.png)
+![RegOT sticker](figs/sticker-regot.svg)
 
 ### 📃 Bibliography
 
