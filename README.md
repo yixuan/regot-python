@@ -1,4 +1,4 @@
-# RegOT-Python<img src="figs/sticker-regot.svg" alt="RegOT" height="150px" align="right" />
+# RegOT-Python<img src="figs/sticker-regot.png" alt="RegOT" height="150px" align="right" />
 
 **RegOT** is a collection of state-of-the-art solvers for
 regularized optimal transport (OT) problems, implemented in
@@ -149,9 +149,14 @@ res4 = regot.qrot_pdip(
 )
 ```
 
-We can retrieve the computed transport plans and visualize them (heatmap of the plan matrix). The two **PDIP** figures below are saved as `figs/plan_pdip_reg0_1.png` and `figs/plan_pdip_reg0_01.png` (the older `figs/plan_reg0_*.png` filenames are left unchanged in the repo).
+We can retrieve the computed transport plans and visualize them (heatmap of the plan matrix). Example outputs checked into `figs/`:
 
-To **regenerate** the PDIP PNGs after editing the example, run from the repository root (requires a local build, e.g. `pip install -e .`):
+- **EROT:** `plan_erot_bcd_reg0_1.png` (Sinkhorn BCD), `plan_erot_ssns_reg0_01.png` (SSNS)
+- **QROT PDIP:** `plan_pdip_reg0_1.png`, `plan_pdip_reg0_01.png`
+
+(Older `figs/plan_reg0_*.png` files are unchanged.)
+
+To **regenerate** these PNGs after editing the example, run from the repository root (requires a local build, e.g. `pip install -e .`):
 
 ```bash
 python figs/generate_readme_plans.py
@@ -166,17 +171,23 @@ def vis_plan(T, title="", cmap="viridis", save_path=None):
         fig.savefig(save_path, bbox_inches="tight", dpi=150)
     plt.show()
 
-vis_plan(res1.plan, title="Sinkhorn, reg=0.1")
-vis_plan(res2.plan, title="SSNS, reg=0.01")
+vis_plan(res1.plan, title="Sinkhorn (BCD), reg=0.1", save_path="figs/plan_erot_bcd_reg0_1.png")
+vis_plan(res2.plan, title="SSNS, reg=0.01", save_path="figs/plan_erot_ssns_reg0_01.png")
 vis_plan(res3.plan, title="reg=0.1", save_path="figs/plan_pdip_reg0_1.png")
 vis_plan(res4.plan, title="reg=0.01", save_path="figs/plan_pdip_reg0_01.png")
 ```
+
+**EROT (entropic regularization)**
+
+<img src="figs/plan_erot_bcd_reg0_1.png" width="45%" alt="EROT Sinkhorn BCD transport plan, reg=0.1" /> <img src="figs/plan_erot_ssns_reg0_01.png" width="45%" alt="EROT SSNS transport plan, reg=0.01" />
+
+**QROT (PDIP)**
 
 <img src="figs/plan_pdip_reg0_1.png" width="45%" alt="QROT PDIP transport plan, reg=0.1" /> <img src="figs/plan_pdip_reg0_01.png" width="45%" alt="QROT PDIP transport plan, reg=0.01" />
 
 🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [figs/sticker.py](figs/sticker.py) to reproduce the image.
 
-![RegOT sticker](figs/sticker-regot.svg)
+![RegOT sticker](figs/sticker-regot.png)
 
 ### 📃 Bibliography
 

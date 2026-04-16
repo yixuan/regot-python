@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Regenerate the PDIP transport-plan PNGs referenced in README.md
-(`figs/plan_pdip_reg0_1.png`, `figs/plan_pdip_reg0_01.png`).
+Regenerate README transport-plan PNGs:
+  EROT: `plan_erot_bcd_reg0_1.png`, `plan_erot_ssns_reg0_01.png`
+  QROT PDIP: `plan_pdip_reg0_1.png`, `plan_pdip_reg0_01.png`
 Does not overwrite `figs/plan_reg0_*.png`.
 
 Run from repository root (recommended):
@@ -67,13 +68,18 @@ def main() -> int:
     reg = 0.01
     res4 = regot.qrot_pdip(M, a, b, reg, max_iter=2000, inner_solver="fp")
 
-    vis_plan(res1.plan, title="Sinkhorn, reg=0.1")
-    vis_plan(res2.plan, title="SSNS, reg=0.01")
+    vis_plan(res1.plan, title="Sinkhorn (BCD), reg=0.1", save_path=FIGS / "plan_erot_bcd_reg0_1.png")
+    vis_plan(res2.plan, title="SSNS, reg=0.01", save_path=FIGS / "plan_erot_ssns_reg0_01.png")
     vis_plan(res3.plan, title="reg=0.1", save_path=FIGS / "plan_pdip_reg0_1.png")
     vis_plan(res4.plan, title="reg=0.01", save_path=FIGS / "plan_pdip_reg0_01.png")
 
-    print("Wrote:", FIGS / "plan_pdip_reg0_1.png")
-    print("Wrote:", FIGS / "plan_pdip_reg0_01.png")
+    for name in (
+        "plan_erot_bcd_reg0_1.png",
+        "plan_erot_ssns_reg0_01.png",
+        "plan_pdip_reg0_1.png",
+        "plan_pdip_reg0_01.png",
+    ):
+        print("Wrote:", FIGS / name)
     return 0
 
 
