@@ -79,8 +79,20 @@
 #define NETWORK_REVERSE_16LANES \
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 #define NETWORK_REVERSE_32LANES \
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, \
-            21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+    31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, \
+            13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
+
+#if defined(XSS_USE_OPENMP) && defined(_OPENMP)
+#define XSS_COMPILE_OPENMP
+#include <omp.h>
+
+// Limit the number of threads to 16: emperically determined, can be probably
+// better tuned at a later stage
+X86_SIMD_SORT_INLINE int xss_get_num_threads()
+{
+    return std::min(16, (int)omp_get_max_threads());
+}
+#endif
 
 template <class... T>
 constexpr bool always_false = false;
@@ -103,5 +115,9 @@ enum class simd_type : int { AVX2, AVX512 };
 
 template <typename vtype, typename T = typename vtype::type_t>
 X86_SIMD_SORT_INLINE bool comparison_func(const T &a, const T &b);
+
+struct float16 {
+    uint16_t val;
+};
 
 #endif // XSS_COMMON_INCLUDES

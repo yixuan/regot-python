@@ -45,6 +45,12 @@ bool is_a_nan(T elem)
     return std::isnan(elem);
 }
 
+template <>
+X86_SIMD_SORT_INLINE_ONLY bool is_a_nan<uint16_t>(uint16_t elem)
+{
+    return ((elem & 0x7c00u) == 0x7c00u) && ((elem & 0x03ffu) != 0);
+}
+
 template <typename vtype, typename T>
 X86_SIMD_SORT_INLINE arrsize_t replace_nan_with_inf(T *arr, arrsize_t size)
 {
@@ -110,7 +116,7 @@ X86_SIMD_SORT_INLINE void replace_inf_with_nan(type_t *arr,
                 arr[ii] = xss::fp::quiet_NaN<type_t>();
             }
             else {
-                arr[ii] = 0xFFFF;
+                arr[ii] = 0x7c01; // std::quiet_nan
             }
             nan_count -= 1;
         }
@@ -121,7 +127,7 @@ X86_SIMD_SORT_INLINE void replace_inf_with_nan(type_t *arr,
                 arr[ii] = xss::fp::quiet_NaN<type_t>();
             }
             else {
-                arr[ii] = 0xFFFF;
+                arr[ii] = 0x7c01; // std::quiet_nan
             }
             nan_count -= 1;
         }
@@ -521,8 +527,11 @@ template <typename vtype, int maxN>
 void sort_n(typename vtype::type_t *arr, int N);
 
 template <typename vtype, typename comparator, typename type_t>
-static void
-qsort_(type_t *arr, arrsize_t left, arrsize_t right, arrsize_t max_iters)
+static void qsort_(type_t *arr,
+                   arrsize_t left,
+                   arrsize_t right,
+                   arrsize_t max_iters,
+                   arrsize_t task_threshold)
 {
     /*
      * Resort to std::sort if quicksort isnt making any progress
@@ -559,10 +568,40 @@ qsort_(type_t *arr, arrsize_t left, arrsize_t right, arrsize_t max_iters)
     type_t leftmostValue = comparator::leftmost(smallest, biggest);
     type_t rightmostValue = comparator::rightmost(smallest, biggest);
 
+#ifdef XSS_COMPILE_OPENMP
+    if (pivot != leftmostValue) {
+        bool parallel_left = (pivot_index - left) > task_threshold;
+        if (parallel_left) {
+#pragma omp task
+            qsort_<vtype, comparator>(
+                    arr, left, pivot_index - 1, max_iters - 1, task_threshold);
+        }
+        else {
+            qsort_<vtype, comparator>(
+                    arr, left, pivot_index - 1, max_iters - 1, task_threshold);
+        }
+    }
+    if (pivot != rightmostValue) {
+        bool parallel_right = (right - pivot_index) > task_threshold;
+
+        if (parallel_right) {
+#pragma omp task
+            qsort_<vtype, comparator>(
+                    arr, pivot_index, right, max_iters - 1, task_threshold);
+        }
+        else {
+            qsort_<vtype, comparator>(
+                    arr, pivot_index, right, max_iters - 1, task_threshold);
+        }
+    }
+#else
+    UNUSED(task_threshold);
+
     if (pivot != leftmostValue)
-        qsort_<vtype, comparator>(arr, left, pivot_index - 1, max_iters - 1);
+        qsort_<vtype, comparator>(arr, left, pivot_index - 1, max_iters - 1, 0);
     if (pivot != rightmostValue)
-        qsort_<vtype, comparator>(arr, pivot_index, right, max_iters - 1);
+        qsort_<vtype, comparator>(arr, pivot_index, right, max_iters - 1, 0);
+#endif
 }
 
 template <typename vtype, typename comparator, typename type_t>
@@ -627,11 +666,47 @@ X86_SIMD_SORT_INLINE void xss_qsort(T *arr, arrsize_t arrsize, bool hasnan)
         }
 
         UNUSED(hasnan);
+
+#ifdef XSS_COMPILE_OPENMP
+
+        bool use_parallel = arrsize > 100000;
+
+        if (use_parallel) {
+            int thread_count = xss_get_num_threads();
+            arrsize_t task_threshold
+                    = std::max((arrsize_t)100000, arrsize / 100);
+
+            // We use omp parallel and then omp single to setup the threads that will run the omp task calls in qsort_
+            // The omp single prevents multiple threads from running the initial qsort_ simultaneously and causing problems
+            // Note that we do not use the if(...) clause built into OpenMP, because it causes a performance regression for small arrays
+#pragma omp parallel num_threads(thread_count)
+#pragma omp single
+            qsort_<vtype, comparator, T>(arr,
+                                         0,
+                                         arrsize - 1,
+                                         2 * (arrsize_t)log2(arrsize),
+                                         task_threshold);
+#pragma omp taskwait
+        }
+        else {
+            qsort_<vtype, comparator, T>(arr,
+                                         0,
+                                         arrsize - 1,
+                                         2 * (arrsize_t)log2(arrsize),
+                                         std::numeric_limits<arrsize_t>::max());
+        }
+#else
         qsort_<vtype, comparator, T>(
-                arr, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize));
+                arr, 0, arrsize - 1, 2 * (arrsize_t)log2(arrsize), 0);
+#endif
 
         replace_inf_with_nan(arr, arrsize, nan_count, descending);
     }
+
+#ifdef __MMX__
+    // Workaround for compiler bug generating MMX instructions without emms
+    _mm_empty();
+#endif
 }
 
 // Quick select methods
@@ -643,6 +718,9 @@ xss_qselect(T *arr, arrsize_t k, arrsize_t arrsize, bool hasnan)
             typename std::conditional<descending,
                                       Comparator<vtype, true>,
                                       Comparator<vtype, false>>::type;
+
+    // Exit early if no work would be done
+    if (arrsize <= 1) return;
 
     arrsize_t index_first_elem = 0;
     arrsize_t index_last_elem = arrsize - 1;
@@ -666,6 +744,11 @@ xss_qselect(T *arr, arrsize_t k, arrsize_t arrsize, bool hasnan)
                                        index_last_elem,
                                        2 * (arrsize_t)log2(arrsize));
     }
+
+#ifdef __MMX__
+    // Workaround for compiler bug generating MMX instructions without emms
+    _mm_empty();
+#endif
 }
 
 // Partial sort methods:
