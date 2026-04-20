@@ -58,10 +58,18 @@ class get_eigen_include(object):
 
         return target_dir.name
 
-# Test CPU feature (OpenMP disabled: single-thread Eigen path in PDIP solvers)
+# Test CPU feature
+# Better performance if AVX2 is supported and OpenMP is enabled
+# It seems hard to configure OpenMP for MacOS on Github Action,
+# so for now we disable OpenMP for MacOS
 extra_compiler_args = []
 try:
     info = get_cpu_info()
+    if info["count"] > 1:
+        if sys.platform == "win32":
+            extra_compiler_args += ["/openmp"]
+        if sys.platform == "linux":
+            extra_compiler_args += ["-fopenmp"]
     if "avx2" in info["flags"]:
         if sys.platform == "win32":
             extra_compiler_args += ["/arch:AVX2"]
@@ -70,29 +78,26 @@ try:
 except:
     pass
 
-
-def _pdip_dev_macros():
-    macros = [("VERSION_INFO", __version__)]
-    # Developer-only PDIP profiling / env knobs (see src/pdip_dev_flags.h).
-    if os.environ.get("REGOT_PDIP_DEV", "").strip().lower() in ("1", "true", "yes", "on"):
-        macros.append(("REGOT_PDIP_DEV", "1"))
-    return macros
-
+# Macros passed to compilers
+macros = [("VERSION_INFO", __version__)]
+# Developer-only PDIP profiling (see src/pdip_dev_flags.h)
+if os.environ.get("REGOT_PDIP_DEV", "").strip().lower() in ("1", "true", "yes", "on"):
+    macros.append(("REGOT_PDIP_DEV", "1"))
 
 ext_modules = [
     Pybind11Extension("regot._internal",
         sorted(glob("src/*.cpp")),
         include_dirs=[get_eigen_include(), LBFGSPP_DIRECTORY],
-        define_macros=_pdip_dev_macros(),
-        extra_compile_args = extra_compiler_args,
-        extra_link_args = extra_compiler_args
+        define_macros=macros,
+        extra_compile_args=extra_compiler_args,
+        extra_link_args=extra_compiler_args
     )
 ]
 
 setup(
     name="regot",
     version=__version__,
-    author=["Yixuan Qiu", "Chenrui Wang"],
+    author=["Yixuan Qiu", "Chenrui Wang", "Shunhua Yang"],
     author_email="yixuanq@gmail.com",
     url="https://github.com/yixuan/regot-python",
     description="Regularized Optimal Transport",
@@ -106,4 +111,3 @@ setup(
     zip_safe=False,
     python_requires=">=3.10",
 )
-
