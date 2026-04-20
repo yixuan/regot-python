@@ -58,23 +58,21 @@ The following solvers are available for the QROT problem:
 - `qrot_assn`: the adaptive semi-smooth Newton (ASSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1603.07870)).
 - `qrot_grssn`: the globalized and regularized semi-smooth Newton (GRSSN) method applied to the dual problem of QROT ([link to paper](https://arxiv.org/pdf/1903.01112)).
 
-Primal-dual interior-point QROT solver (unified API):
+All the solvers above return an object containing fields:
 
-- **`qrot_pdip`**: primal-dual interior-point method. Pass **`inner_solver="cg"`** for a CG-based linear solve, or **`inner_solver="fp"`** for the fixed-point / sparse-Cholesky inner path. Default is **`inner_solver="cg"`** (case-insensitive).
-  - For **`cg`**: default `tol=1e-8` for normalized primal/dual gaps and `mu`. When `cg_stop_gap_mu_only` is false (default), marginal-error stopping uses **`cg_mar_tol` (default `1e-10`)**, independent of `tol`. Pass `cg_mar_tol` in kwargs to override. Set `cg_stop_gap_mu_only=True` to require **only** gaps + `mu` (like the FP path).
-  - For **`fp`**: default `tol=1e-8`. By default, stopping uses only normalized primal/dual gaps and `mu` (`fp_stop_gap_mu_only=True`). Pass `fp_stop_gap_mu_only=False` if you also want to stop when marginal error `mar_err` falls below `tol`.
-- **`pdip_cg`** / **`pdip_fp`**: legacy aliases for `qrot_pdip` with `inner_solver="cg"` or `"fp"` respectively.
+- `niter`: number of iterations used.
+- `dual`: final dual variables.
+- `plan`: computed transport plan.
+- `obj_vals`: history of dual objective function values.
+- `mar_errs`: history of marginal errors.
+- `run_times`: cumulative runtimes of iterations in milliseconds.
 
-**Developer / profiling builds.** Prebuilt wheels use the same numerics but **do not** compile in PDIP profiling hooks. When building from source, set **`REGOT_PDIP_DEV=1`** for the install step (e.g. `REGOT_PDIP_DEV=1 pip install -e .` on Unix; on Windows, set the variable in the environment before `pip install`). That enables optional runtime knobs: e.g. **`PDIP_CG_TIMING=1`** writes a phase breakdown to `pdip_cg_timing.txt`; with **`REGOT_PDIP_DEV`**, **`PDIP_SPARSITY_KEEP`** can tune the dynamic sparsity threshold in the CG preconditioner (see `src/pdip_dev_flags.h`). Without **`REGOT_PDIP_DEV`**, those environment variables are ignored—matching release behavior and avoiding accidental I/O.
+A specialized primal-dual interior-point solver is also available for the QROT problem:
 
-They return an object with fields:
-
-- `niter`: number of outer iterations.
-- `converged`: whether the stopping criterion is met.
-- `plan`: transport plan.
-- `obj_vals`: primal objective history.
-- `mar_errs`: marginal error history, defined as `max(||T1-a||_2, ||T^T1-b||_2)`.
-- `run_times`: cumulative runtime history in milliseconds.
+- `qrot_pdip`: the primal-dual interior-point method. Pass `inner_solver="cg"` for a CG-based inner solver, or `inner_solver="fp"` for the fixed-point method inner solver. Default is `inner_solver="cg"`.
+- `pdip_cg` / `pdip_fp`: aliases for `qrot_pdip` with `inner_solver="cg"` and `"fp"`, respectively.
+- For `cg`: default `tol=1e-8` for normalized primal/dual gaps and `mu`. When `cg_stop_gap_mu_only` is false (default), marginal-error stopping uses `cg_mar_tol` (default `1e-10`), independent of `tol`. Pass `cg_mar_tol` in kwargs to override. Set `cg_stop_gap_mu_only=True` to require only gaps + `mu` (like the FP solver).
+- For `fp`: default `tol=1e-8`. By default, stopping uses only normalized primal/dual gaps and `mu` (`fp_stop_gap_mu_only=True`). Pass `fp_stop_gap_mu_only=False` if you also want to stop when marginal error `mar_err` falls below `tol`.
 
 ## 💽 Installation
 
@@ -94,13 +92,13 @@ A C++ compiler is needed to build **RegOT** from source. Enter the source direct
 pip install . -r requirements.txt
 ```
 
-Eigen headers are downloaded automatically on first build (or use `EIGEN3_INCLUDE_DIR`). The folders `eigen-5.0.1/` and `data/` are local build or dataset caches and should not be committed.
+### Developer / Profiling builds
+
+An optional environment variable `REGOT_PDIP_DEV` can be set during installation (e.g., `REGOT_PDIP_DEV=1 pip install .`) to enable additional profiling functions. See `src/pdip_dev_flags.h` for details.
 
 ## 📗 Example
 
-The code below shows minimal examples computing **EROT** (Sinkhorn-type solvers)
-and **QROT** with the primal-dual interior-point solver **`qrot_pdip`**, given the same
-$a$, $b$, $M$ and regularization strengths.
+The code below shows minimal examples computing EROT and QROT transport plans given $a$, $b$, $M$, and $\eta$.
 
 ```py
 import numpy as np
@@ -130,6 +128,7 @@ np.random.seed(123)
 M, a, b = example(n=100, m=80)
 reg = 0.1
 
+# EROT transport plans
 # Algorithm: block coordinate descent (the Sinkhorn algorithm)
 res1 = regot.sinkhorn_bcd(
     M, a, b, reg, tol=1e-6, max_iter=1000, verbose=1)
@@ -139,51 +138,30 @@ reg = 0.01
 res2 = regot.sinkhorn_ssns(
     M, a, b, reg, tol=1e-6, max_iter=1000, verbose=0)
 
-# QROT: primal-dual interior-point (PDIP); `reg` is the QROT penalty γ (see formulation)
+# QROT transport plans
 res3 = regot.qrot_pdip(
-    M, a, b, 0.1, max_iter=2000, inner_solver="cg"
-)  # default tol=1e-8, gap+μ stop
-reg = 0.01
+    M, a, b, reg=0.1, tol=1e-8, max_iter=1000, inner_solver="cg")
 res4 = regot.qrot_pdip(
-    M, a, b, reg, max_iter=2000, inner_solver="fp"
-)
+    M, a, b, reg=0.01, tol=1e-8, max_iter=1000, inner_solver="fp")
 ```
 
-We can retrieve the computed transport plans and visualize them (heatmap of the plan matrix). Example outputs checked into `figs/`:
-
-- **EROT:** `plan_erot_bcd_reg0_1.png` (Sinkhorn BCD), `plan_erot_ssns_reg0_01.png` (SSNS)
-- **QROT PDIP:** `plan_pdip_reg0_1.png`, `plan_pdip_reg0_01.png`
-
-(Older `figs/plan_reg0_*.png` files are unchanged.)
-
-To **regenerate** these PNGs after editing the example, run from the repository root (requires a local build, e.g. `pip install -e .`):
-
-```bash
-python figs/generate_readme_plans.py
-```
+We can retrieve the computed transport plans and visualize them using heatmaps:
 
 ```py
-def vis_plan(T, title="", cmap="viridis", save_path=None):
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.imshow(T, cmap=cmap, interpolation="nearest", aspect="auto")
-    ax.set_title(title, fontsize=20)
-    if save_path is not None:
-        fig.savefig(save_path, bbox_inches="tight", dpi=150)
+def vis_plan(T, title=""):
+    fig = plt.figure(figsize=(8, 8))
+    plt.imshow(T, interpolation="nearest")
+    plt.title(title, fontsize=20)
     plt.show()
 
-vis_plan(res1.plan, title="Sinkhorn (BCD), reg=0.1", save_path="figs/plan_erot_bcd_reg0_1.png")
-vis_plan(res2.plan, title="SSNS, reg=0.01", save_path="figs/plan_erot_ssns_reg0_01.png")
-vis_plan(res3.plan, title="reg=0.1", save_path="figs/plan_pdip_reg0_1.png")
-vis_plan(res4.plan, title="reg=0.01", save_path="figs/plan_pdip_reg0_01.png")
+vis_plan(res1.plan, title="EROT (BCD), reg=0.1")
+vis_plan(res2.plan, title="EROT (SSNS), reg=0.01")
+vis_plan(res3.plan, title="QROT (PDIP-CG), reg=0.1")
+vis_plan(res4.plan, title="QROT (PDIP-FP), reg=0.01")
 ```
 
-**EROT (entropic regularization)**
-
-<img src="figs/plan_erot_bcd_reg0_1.png" width="45%" alt="EROT Sinkhorn BCD transport plan, reg=0.1" /> <img src="figs/plan_erot_ssns_reg0_01.png" width="45%" alt="EROT SSNS transport plan, reg=0.01" />
-
-**QROT (PDIP)**
-
-<img src="figs/plan_pdip_reg0_1.png" width="45%" alt="QROT PDIP transport plan, reg=0.1" /> <img src="figs/plan_pdip_reg0_01.png" width="45%" alt="QROT PDIP transport plan, reg=0.01" />
+<img src="figs/plan_erot_bcd_reg0_1.png" width="45%" /> <img src="figs/plan_erot_ssns_reg0_01.png" width="45%" />
+<img src="figs/plan_qrot_pdip_reg0_1.png" width="45%" /> <img src="figs/plan_qrot_pdip_reg0_01.png" width="45%" />
 
 🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [this code](figs/sticker.py) to reproduce the image.
 
