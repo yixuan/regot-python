@@ -1,4 +1,4 @@
-# RegOT-Python<img src="figs/sticker-regot.png" alt="RegOT" height="150px" align="right" />
+# RegOT-Python<img src="https://statr.me/images/sticker-regot.png" alt="regot" height="150px" align="right" />
 
 **RegOT** is a collection of state-of-the-art solvers for
 regularized optimal transport (OT) problems, implemented in
@@ -185,9 +185,9 @@ vis_plan(res4.plan, title="reg=0.01", save_path="figs/plan_pdip_reg0_01.png")
 
 <img src="figs/plan_pdip_reg0_1.png" width="45%" alt="QROT PDIP transport plan, reg=0.1" /> <img src="figs/plan_pdip_reg0_01.png" width="45%" alt="QROT PDIP transport plan, reg=0.01" />
 
-🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [figs/sticker.py](figs/sticker.py) to reproduce the image.
+🌟 **Fun fact**: The logo sticker of **RegOT** also uses the package itself to compute the transport pattern between point clouds. You can use [this code](figs/sticker.py) to reproduce the image.
 
-![RegOT sticker](figs/sticker-regot.png)
+![RegOT sticker](https://statr.me/images/sticker-regot.png)
 
 ### 📃 Bibliography
 
