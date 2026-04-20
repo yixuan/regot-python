@@ -1,7 +1,7 @@
 // Role of this file:
-// 1) Bind C++ solvers to Python;
-// 2) Parse kwargs into per-algorithm options in one place;
-// 3) Keep regot return-object fields consistent across the public API.
+// 1. Bind C++ solvers to Python;
+// 2. Parse kwargs into per-algorithm options in one place;
+// 3. Keep regot return-object fields consistent across the public API.
 #include <cctype>
 #include <iostream>
 #include <stdexcept>
@@ -24,10 +24,10 @@ using RefConstMat = Eigen::Ref<const Matrix>;
 
 using QROT::QROTResult;
 using QROT::QROTSolverOpts;
-using Sinkhorn::SinkhornResult;
-using Sinkhorn::SinkhornSolverOpts;
 using PDIP::PDIPResult;
 using PDIP::PDIPSolverOpts;
+using Sinkhorn::SinkhornResult;
+using Sinkhorn::SinkhornSolverOpts;
 
 // Set solver_opts from Python-side keyword arguments
 inline void parse_qrot_opts(
@@ -200,6 +200,117 @@ QROTResult qrot_s5n(
 
 
 // Set solver_opts from Python-side keyword arguments
+inline void parse_pdip_opts(
+    PDIPSolverOpts &solver_opts, const py::kwargs &kwargs
+)
+{
+    // cg_max_iter: max inner CG iterations
+    if (kwargs.contains("cg_max_iter"))
+    {
+        solver_opts.cg_max_iter = py::int_(kwargs["cg_max_iter"]);
+    }
+    // fixed_threshold: FP sparsity threshold; gates whether B2 / fixed-point path is used
+    if (kwargs.contains("fixed_threshold"))
+    {
+        solver_opts.fixed_threshold = py::float_(kwargs["fixed_threshold"]);
+    }
+    // fp_max_iter: max inner fixed-point iterations for FP
+    if (kwargs.contains("fp_max_iter"))
+    {
+        solver_opts.fp_max_iter = py::int_(kwargs["fp_max_iter"]);
+    }
+    // fp_exit_scale: inner FP stopping threshold scale
+    if (kwargs.contains("fp_exit_scale"))
+    {
+        solver_opts.fp_exit_scale = py::float_(kwargs["fp_exit_scale"]);
+    }
+    if (kwargs.contains("fp_stop_gap_mu_only"))
+    {
+        solver_opts.fp_stop_gap_mu_only = py::bool_(kwargs["fp_stop_gap_mu_only"]);
+    }
+    if (kwargs.contains("cg_stop_gap_mu_only"))
+    {
+        solver_opts.cg_stop_gap_mu_only = py::bool_(kwargs["cg_stop_gap_mu_only"]);
+    }
+    if (kwargs.contains("cg_mar_tol"))
+    {
+        solver_opts.cg_mar_tol = py::float_(kwargs["cg_mar_tol"]);
+    }
+}
+
+// Unified PDIP entry: naming aligned with QROT; inner_solver selects CG or FP (sparse Cholesky inner path for FP)
+static PDIPResult run_pdip(
+    bool use_fp_inner,
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    PDIPResult result;
+    PDIPSolverOpts solver_opts;
+    parse_pdip_opts(solver_opts, kwargs);
+    Matrix M_T = M.transpose();
+    if (use_fp_inner)
+    {
+        PDIP::pdip_fp_internal(
+            result, M_T, a, b, reg, solver_opts, tol, max_iter,
+            verbose, std::cout
+        );
+    }
+    else
+    {
+        PDIP::pdip_cg_internal(
+            result, M_T, a, b, reg, solver_opts, tol, max_iter,
+            verbose, std::cout
+        );
+    }
+    return result;
+}
+
+PDIPResult qrot_pdip(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    std::string mode = "cg";
+    if (kwargs.contains("inner_solver"))
+    {
+        py::object v = kwargs["inner_solver"];
+        if (!py::isinstance<py::str>(v))
+        {
+            throw std::runtime_error("qrot_pdip: inner_solver must be a string, e.g. \"cg\" or \"fp\"");
+        }
+        mode = py::str(v).cast<std::string>();
+    }
+    for (char &c : mode)
+    {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (mode != "cg" && mode != "fp")
+    {
+        throw std::runtime_error("qrot_pdip: inner_solver must be \"cg\" or \"fp\"");
+    }
+    return run_pdip(mode == "fp", M, a, b, reg, tol, max_iter, verbose, kwargs);
+}
+
+PDIPResult pdip_cg(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    return run_pdip(false, M, a, b, reg, tol, max_iter, verbose, kwargs);
+}
+
+PDIPResult pdip_fp(
+    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
+    double tol, int max_iter, int verbose, const py::kwargs &kwargs
+)
+{
+    return run_pdip(true, M, a, b, reg, tol, max_iter, verbose, kwargs);
+}
+
+
+
+// Set solver_opts from Python-side keyword arguments
 inline void parse_sinkhorn_opts(
     SinkhornSolverOpts &solver_opts, const py::kwargs &kwargs
 )
@@ -347,109 +458,6 @@ SinkhornResult sinkhorn_splr(
     return result;
 }
 
-inline void parse_pdip_opts(
-    PDIPSolverOpts &solver_opts, const py::kwargs &kwargs
-)
-{
-    // cg_max_iter: max inner CG iterations
-    if (kwargs.contains("cg_max_iter"))
-    {
-        solver_opts.cg_max_iter = py::int_(kwargs["cg_max_iter"]);
-    }
-    // fixed_threshold: FP sparsity threshold; gates whether B2 / fixed-point path is used
-    if (kwargs.contains("fixed_threshold"))
-    {
-        solver_opts.fixed_threshold = py::float_(kwargs["fixed_threshold"]);
-    }
-    // fp_max_iter: max inner fixed-point iterations for FP
-    if (kwargs.contains("fp_max_iter"))
-    {
-        solver_opts.fp_max_iter = py::int_(kwargs["fp_max_iter"]);
-    }
-    // fp_exit_scale: inner FP stopping threshold scale
-    if (kwargs.contains("fp_exit_scale"))
-    {
-        solver_opts.fp_exit_scale = py::float_(kwargs["fp_exit_scale"]);
-    }
-    if (kwargs.contains("fp_stop_gap_mu_only"))
-    {
-        solver_opts.fp_stop_gap_mu_only = py::bool_(kwargs["fp_stop_gap_mu_only"]);
-    }
-    if (kwargs.contains("cg_stop_gap_mu_only"))
-    {
-        solver_opts.cg_stop_gap_mu_only = py::bool_(kwargs["cg_stop_gap_mu_only"]);
-    }
-    if (kwargs.contains("cg_mar_tol"))
-    {
-        solver_opts.cg_mar_tol = py::float_(kwargs["cg_mar_tol"]);
-    }
-}
-
-// Unified PDIP entry: naming aligned with QROT; inner_solver selects CG or FP (sparse Cholesky inner path for FP).
-static PDIPResult run_pdip(
-    bool use_fp_inner,
-    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol, int max_iter, int verbose, const py::kwargs &kwargs
-)
-{
-    PDIPResult result;
-    PDIPSolverOpts solver_opts;
-    parse_pdip_opts(solver_opts, kwargs);
-    Matrix M_T = M.transpose();
-    if (use_fp_inner) {
-        PDIP::pdip_fp_internal(
-            result, M_T, a, b, reg, solver_opts, tol, max_iter,
-            verbose, std::cout);
-    } else {
-        PDIP::pdip_cg_internal(
-            result, M_T, a, b, reg, solver_opts, tol, max_iter,
-            verbose, std::cout);
-    }
-    return result;
-}
-
-PDIPResult qrot_pdip(
-    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol, int max_iter, int verbose, const py::kwargs &kwargs
-)
-{
-    std::string mode = "cg";
-    if (kwargs.contains("inner_solver"))
-    {
-        py::object v = kwargs["inner_solver"];
-        if (!py::isinstance<py::str>(v))
-        {
-            throw std::runtime_error("qrot_pdip: inner_solver must be a string, e.g. \"cg\" or \"fp\"");
-        }
-        mode = py::str(v).cast<std::string>();
-    }
-    for (char &c : mode)
-    {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    if (mode != "cg" && mode != "fp")
-    {
-        throw std::runtime_error("qrot_pdip: inner_solver must be \"cg\" or \"fp\"");
-    }
-    return run_pdip(mode == "fp", M, a, b, reg, tol, max_iter, verbose, kwargs);
-}
-
-PDIPResult pdip_cg(
-    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol, int max_iter, int verbose, const py::kwargs &kwargs
-)
-{
-    return run_pdip(false, M, a, b, reg, tol, max_iter, verbose, kwargs);
-}
-
-PDIPResult pdip_fp(
-    RefConstMat M, RefConstVec a, RefConstVec b, double reg,
-    double tol, int max_iter, int verbose, const py::kwargs &kwargs
-)
-{
-    return run_pdip(true, M, a, b, reg, tol, max_iter, verbose, kwargs);
-}
-
 
 
 PYBIND11_MODULE(_internal, m) {
@@ -484,6 +492,18 @@ PYBIND11_MODULE(_internal, m) {
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
     */
 
+    // PDIP: unified entry qrot_pdip(inner_solver="cg"|"fp")
+    // pdip_cg / pdip_fp are compatibility aliases
+    m.def("qrot_pdip", &qrot_pdip,
+        "M"_a, "a"_a, "b"_a, "reg"_a,
+        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
+    m.def("pdip_cg", &pdip_cg,
+        "M"_a, "a"_a, "b"_a, "reg"_a,
+        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
+    m.def("pdip_fp", &pdip_fp,
+        "M"_a, "a"_a, "b"_a, "reg"_a,
+        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
+
     // Sinkhorn solvers
     m.def("sinkhorn_apdagd", &sinkhorn_apdagd,
         "M"_a, "a"_a, "b"_a, "reg"_a,
@@ -506,16 +526,6 @@ PYBIND11_MODULE(_internal, m) {
     m.def("sinkhorn_splr", &sinkhorn_splr,
         "M"_a, "a"_a, "b"_a, "reg"_a,
         "tol"_a = 1e-6, "max_iter"_a = 1000, "verbose"_a = 0);
-    // PDIP: unified entry qrot_pdip(inner_solver="cg"|"fp"); pdip_cg / pdip_fp are compatibility aliases.
-    m.def("qrot_pdip", &qrot_pdip,
-        "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
-    m.def("pdip_cg", &pdip_cg,
-        "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
-    m.def("pdip_fp", &pdip_fp,
-        "M"_a, "a"_a, "b"_a, "reg"_a,
-        "tol"_a = 1e-8, "max_iter"_a = 1000, "verbose"_a = 0);
 
     // Returned object
     py::class_<QROTResult>(m, "qrot_result")
@@ -527,17 +537,7 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("prim_vals", &QROTResult::prim_vals)
         .def_readwrite("mar_errs", &QROTResult::mar_errs)
         .def_readwrite("run_times", &QROTResult::run_times);
-
-    py::class_<SinkhornResult>(m, "sinkhorn_result")
-        .def(py::init<>())
-        .def_readwrite("niter", &SinkhornResult::niter)
-        .def_readwrite("dual", &SinkhornResult::dual)
-        .def_readwrite("plan", &SinkhornResult::plan)
-        .def_readwrite("obj_vals", &SinkhornResult::obj_vals)
-        // .def_readwrite("prim_vals", &SinkhornResult::prim_vals)
-        .def_readwrite("mar_errs", &SinkhornResult::mar_errs)
-        .def_readwrite("run_times", &SinkhornResult::run_times)
-        .def_readwrite("densities", &SinkhornResult::densities);
+    
     py::class_<PDIPResult>(m, "pdip_result")
         .def(py::init<>())
         .def_readwrite("niter", &PDIPResult::niter)
@@ -552,8 +552,18 @@ PYBIND11_MODULE(_internal, m) {
         .def_readwrite("t_eq_matvec", &PDIPResult::t_eq_matvec)
         .def_readwrite("t_other", &PDIPResult::t_other);
 
+    py::class_<SinkhornResult>(m, "sinkhorn_result")
+        .def(py::init<>())
+        .def_readwrite("niter", &SinkhornResult::niter)
+        .def_readwrite("dual", &SinkhornResult::dual)
+        .def_readwrite("plan", &SinkhornResult::plan)
+        .def_readwrite("obj_vals", &SinkhornResult::obj_vals)
+        // .def_readwrite("prim_vals", &SinkhornResult::prim_vals)
+        .def_readwrite("mar_errs", &SinkhornResult::mar_errs)
+        .def_readwrite("run_times", &SinkhornResult::run_times)
+        .def_readwrite("densities", &SinkhornResult::densities);
+
     // https://hopstorawpointers.blogspot.com/2018/06/pybind11-and-python-sub-modules.html
     m.attr("__name__") = "regot._internal";
     m.doc() = "";
 }
-
