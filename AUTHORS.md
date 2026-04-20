@@ -1,6 +1,7 @@
 The files in `src/sorting` were derived from the **x86-simd-sort** library
-(https://github.com/intel/x86-simd-sort).
+(https://github.com/numpy/x86-simd-sort).
 
-Other part of **RegOT** was written by Yixuan Qiu (yixuanq@gmail.com)
-and Chenrui Wang (iamwangchenrui@gmail.com).
-
+Other part of **RegOT** was written by:
+ - Yixuan Qiu (yixuanq@gmail.com)
+ - Chenrui Wang (iamwangchenrui@gmail.com)
+ - Shunhua Yang (danielmain274@gmail.com)
