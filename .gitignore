@@ -9,17 +9,17 @@ regot.egg-info/*
 *.so
 *.dll
 *.o
+*.pyd
+*.whl
 
 # Files during package building
-eigen-3.4.0/
-eigen-5.0.1/
-eigen3.zip
+eigen*
 
-# Local datasets (not part of the package; MNIST etc. use torchvision or your own path)
+# Local datasets
 data/
 
 # Debug timing dumps from PDIP-CG (if enabled in source)
 pdip_cg_timing*.txt
 
-# ignore vscode file
+# VS Code files
 .vscode/
