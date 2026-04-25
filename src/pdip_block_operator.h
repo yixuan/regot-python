@@ -72,23 +72,25 @@ namespace Eigen {
 namespace internal {
 
 template <typename Rhs>
-struct generic_product_impl<PDIP::BlockACG, Rhs, SparseShape, DenseShape, GemvProduct>
-    : generic_product_impl_base<PDIP::BlockACG, Rhs, generic_product_impl<PDIP::BlockACG, Rhs>> {
+    struct generic_product_impl<PDIP::BlockACG, Rhs, SparseShape, DenseShape, GemvProduct>:
+        generic_product_impl_base<PDIP::BlockACG, Rhs, generic_product_impl<PDIP::BlockACG, Rhs>>
+    {
     using Scalar = typename Product<PDIP::BlockACG, Rhs>::Scalar;
+        using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
 
     template <typename Dest>
-    static void scaleAndAddTo(Dest& dst, const PDIP::BlockACG& lhs, const Rhs& rhs, const Scalar& alpha) {
+        static void scaleAndAddTo(Dest& dst, const PDIP::BlockACG& lhs, const Rhs& rhs, const Scalar& alpha)
+        {
         assert(alpha == Scalar(1) && "scaling is not implemented");
         EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
         const int M = lhs.M_dem();
         const int n12 = lhs.n12();
-        Eigen::Matrix<Scalar, Eigen::Dynamic, 1> xvec = rhs;
-        Eigen::Matrix<Scalar, Eigen::Dynamic, 1> y(M + n12);
-        Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> D(
-            lhs.D_B12().data(), M, n12);
-        y.head(M).noalias() = lhs.B11().cwiseProduct(xvec.head(M)) + D * xvec.tail(n12);
-        y.tail(n12).noalias() = lhs.B22().cwiseProduct(xvec.tail(n12)) + D.transpose() * xvec.head(M);
+
+            typename Dest::PlainObject y(M + n12);
+            Eigen::Map<const Matrix> D(lhs.D_B12().data(), M, n12);
+            y.head(M).noalias() = lhs.B11().cwiseProduct(rhs.head(M)) + D * rhs.tail(n12);
+            y.tail(n12).noalias() = lhs.B22().cwiseProduct(rhs.tail(n12)) + D.transpose() * rhs.head(M);
         dst += y;
     }
 };
