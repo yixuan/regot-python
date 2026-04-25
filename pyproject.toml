@@ -3,13 +3,15 @@ name = "regot"
 version = "0.0.3"
 description = "Regularized Optimal Transport"
 authors = [
-  {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
-  {name = "Chenrui Wang", email = "iamwangchenrui@gmail.com"}
+    {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
+    {name = "Chenrui Wang", email = "iamwangchenrui@gmail.com"},
+    {name = "Shunhua Yang", email = "danielmain274@gmail.com"}
 ]
 maintainers = [
-  {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
+    {name = "Yixuan Qiu", email = "yixuanq@gmail.com"},
 ]
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">= 3.10"
 dependencies = [
@@ -21,7 +23,7 @@ Homepage = "https://github.com/yixuan/regot-python"
 Issues = "https://github.com/yixuan/regot-python/issues"
 
 [build-system]
-requires = ["requests ~= 2.31.0", "pybind11 ~= 3.0.0", "py-cpuinfo ~= 9.0.0", "setuptools >= 80.0"]
+requires = ["requests ~= 2.32.0", "pybind11 ~= 3.0.0", "py-cpuinfo ~= 9.0.0", "setuptools >= 80.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
