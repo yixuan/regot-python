@@ -2,6 +2,7 @@
 #define REGOT_SINKHORN_RESULT_H
 
 #include <vector>
+#include <Eigen/Core>
 #include "config.h"
 #include "sinkhorn_problem.h"
 

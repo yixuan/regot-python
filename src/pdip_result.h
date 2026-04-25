@@ -2,8 +2,8 @@
 #define REGOT_PDIP_RESULT_H
 
 #include <vector>
-#include "config.h"
 #include <Eigen/Core>
+#include "config.h"
 
 namespace PDIP {
 

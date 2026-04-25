@@ -17,20 +17,21 @@ class BlockACG;
 
 namespace Eigen {
 namespace internal {
-template <>
-struct traits<PDIP::BlockACG> : public Eigen::internal::traits<Eigen::SparseMatrix<double>> {};
+    // Inherit SparseMatrix's traints
+    template <>
+    struct traits<PDIP::BlockACG> : public Eigen::internal::traits<Eigen::SparseMatrix<double>>
+    {};
 }  // namespace internal
 }  // namespace Eigen
 
 namespace PDIP {
 
-using Vector = Eigen::VectorXd;
-
 // A maps [w; z] with w in R^M, z in R^{n-1}:
-//   y1 = diag(B11)*w + D*z,  y2 = diag(B22)*z + D'*w,  D = reshape(D_B12, M, n12) column-major.
+//   y1 = diag(B11)*w + D*z,  y2 = diag(B22)*z + D'*w,  D = reshape(D_B12, M, n12) column-major
 class BlockACG : public Eigen::EigenBase<BlockACG> {
 private:
     using Index = Eigen::Index;
+    using Vector = Eigen::VectorXd;
 
     int M_dem_;
     int n12_;
@@ -58,12 +59,14 @@ public:
     const Eigen::Ref<const Vector>& D_B12() const { return D_B12_; }
 
     template <typename Rhs>
-    Eigen::Product<BlockACG, Rhs, Eigen::AliasFreeProduct> operator*(const Eigen::MatrixBase<Rhs>& x) const {
+    Eigen::Product<BlockACG, Rhs, Eigen::AliasFreeProduct> operator*(const Eigen::MatrixBase<Rhs>& x) const
+    {
         return Eigen::Product<BlockACG, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
     }
 
-    BlockACG(int M_dem, int n12, const Vector& B11, const Vector& B22, const Vector& D_B12)
-        : M_dem_(M_dem), n12_(n12), B11_(B11), B22_(B22), D_B12_(D_B12) {}
+    BlockACG(int M_dem, int n12, const Vector& B11, const Vector& B22, const Vector& D_B12):
+        M_dem_(M_dem), n12_(n12), B11_(B11), B22_(B22), D_B12_(D_B12)
+    {}
 };
 
 }  // namespace PDIP
@@ -71,28 +74,28 @@ public:
 namespace Eigen {
 namespace internal {
 
-template <typename Rhs>
+    template <typename Rhs>
     struct generic_product_impl<PDIP::BlockACG, Rhs, SparseShape, DenseShape, GemvProduct>:
         generic_product_impl_base<PDIP::BlockACG, Rhs, generic_product_impl<PDIP::BlockACG, Rhs>>
     {
-    using Scalar = typename Product<PDIP::BlockACG, Rhs>::Scalar;
+        using Scalar = typename Product<PDIP::BlockACG, Rhs>::Scalar;
         using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
 
-    template <typename Dest>
+        template <typename Dest>
         static void scaleAndAddTo(Dest& dst, const PDIP::BlockACG& lhs, const Rhs& rhs, const Scalar& alpha)
         {
-        assert(alpha == Scalar(1) && "scaling is not implemented");
-        EIGEN_ONLY_USED_FOR_DEBUG(alpha);
+            assert(alpha == Scalar(1) && "scaling is not implemented");
+            EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
-        const int M = lhs.M_dem();
-        const int n12 = lhs.n12();
+            const int M = lhs.M_dem();
+            const int n12 = lhs.n12();
 
             typename Dest::PlainObject y(M + n12);
             Eigen::Map<const Matrix> D(lhs.D_B12().data(), M, n12);
             y.head(M).noalias() = lhs.B11().cwiseProduct(rhs.head(M)) + D * rhs.tail(n12);
             y.tail(n12).noalias() = lhs.B22().cwiseProduct(rhs.tail(n12)) + D.transpose() * rhs.head(M);
-        dst += y;
-    }
+            dst += y;
+        }
 };
 
 }  // namespace internal

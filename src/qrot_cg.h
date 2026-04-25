@@ -23,8 +23,8 @@ namespace internal {
     template <>
     struct traits<QROT::HessianCG>: public Eigen::internal::traits<Eigen::SparseMatrix<double>>
     {};
-}
-}
+}  // namespace internal
+}  // namespace Eigen
 
 
 namespace QROT {
@@ -88,18 +88,18 @@ namespace internal {
         static void scaleAndAddTo(Dest& dst, const QROT::HessianCG& lhs, const Rhs& rhs, const Scalar& alpha)
         {
             // This method should implement "dst += alpha * lhs * rhs" inplace,
-            // however, for iterative solvers, alpha is always equal to 1, so let's not bother about it.
+            // however, for iterative solvers, alpha is always equal to 1, so let's not bother about it
             assert(alpha == Scalar(1) && "scaling is not implemented");
             EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
-            // Here we need to implement dst.noalias() += lhs * rhs,
+            // Here we need to implement dst.noalias() += lhs * rhs
             typename Dest::PlainObject res;
             lhs.hess().apply_Deltax(rhs, lhs.shift(), lhs.tau(), res);
             dst += res;
         }
     };
-}
-}
+}  // namespace internal
+}  // namespace Eigen
 //============================= Wrapper =============================//
 
 
